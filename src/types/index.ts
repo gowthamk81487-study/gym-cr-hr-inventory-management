@@ -21,6 +21,25 @@ export interface Client {
   profilePic?: string;
   attendanceRate: number; // Percentage
   paymentStatus: 'paid' | 'unpaid' | 'overdue';
+  gender: 'male' | 'female' | 'other';
+  age: number;
+  dob: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  bloodGroup: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+  address: string;
+  heightCm: number;
+  weightKg: number;
+  bmi: number;
+  fitnessGoal: 'weight_loss' | 'muscle_gain' | 'endurance' | 'general_health';
+  medicalConditions?: string;
+  allergies?: string;
+  workoutPlanId?: string;
+  dietPlanId?: string;
+  lastVisitDate?: string;
+  renewalDate: string;
+  notes?: string;
+  tags?: string[];
 }
 
 export interface Coach {

@@ -74,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       title: 'Operations',
       links: [
         { label: 'HR Administration', href: '/hr', icon: ShieldCheck },
+        { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
         { label: 'Club Inventory', href: '/inventory', icon: Package },
         { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
       ]

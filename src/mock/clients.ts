@@ -44,7 +44,7 @@ export const mockCoaches: Coach[] = [
     bio: 'Coached 200+ weight loss transformations. Integrates strict dietary macronutrient planning with hypertrophic lifting.',
     experienceYears: 10
   },
-  // 7 Coach Stubs to fulfill the 10 Coaches requirement
+  // 17 Coach Stubs to fulfill the 20 Coaches requirement
   ...[
     { id: 'coach-4', name: 'Sophia Sterling', spec: 'Yoga & Flexibility' },
     { id: 'coach-5', name: 'James Vance', spec: 'Kettlebell & Conditioning' },
@@ -52,7 +52,17 @@ export const mockCoaches: Coach[] = [
     { id: 'coach-7', name: 'Lucas Scott', spec: 'Boxing & MMA Conditioning' },
     { id: 'coach-8', name: 'Clara Oswald', spec: 'Pre/Postnatal Fitness' },
     { id: 'coach-9', name: 'Danny Pink', spec: 'Calisthenics & Bodyweight' },
-    { id: 'coach-10', name: 'River Song', spec: 'CrossFit & Cardio Core' }
+    { id: 'coach-10', name: 'River Song', spec: 'CrossFit & Cardio Core' },
+    { id: 'coach-11', name: 'Amy Pond', spec: 'Pilates & Core Strength' },
+    { id: 'coach-12', name: 'Rory Williams', spec: 'Cardiorespiratory Endurance' },
+    { id: 'coach-13', name: 'Jack Harkness', spec: 'Bootcamp & Strength Training' },
+    { id: 'coach-14', name: 'Martha Jones', spec: 'Physiotherapy & Rehab' },
+    { id: 'coach-15', name: 'Donna Noble', spec: 'Aqua Aerobics & Aerobic Dance' },
+    { id: 'coach-16', name: 'Rose Tyler', spec: 'Functional Strength & Tone' },
+    { id: 'coach-17', name: 'Mickey Smith', spec: 'Kickboxing Core Athletics' },
+    { id: 'coach-18', name: 'Wilfred Mott', spec: 'Senior Wellness & Balance' },
+    { id: 'coach-19', name: 'Sarah Jane', spec: 'Youth Athletics Conditioning' },
+    { id: 'coach-20', name: 'John Smith', spec: 'Triathlon & Endurance Coaching' }
   ].map(c => ({
     id: c.id,
     name: c.name,

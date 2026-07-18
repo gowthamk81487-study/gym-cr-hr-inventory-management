@@ -55,6 +55,7 @@ export interface Coach {
   profilePic?: string;
   bio?: string;
   experienceYears?: number;
+  maxCapacity?: number;
 }
 
 export interface Staff {

@@ -27,7 +27,7 @@ export interface EnquiryRecord {
   phone: string;
   branch: string;
   message: string;
-  status: 'new' | 'contacted' | 'pr_week_scheduled' | 'converted' | 'rejected';
+  status: 'new' | 'in_progress' | 'replied' | 'closed' | 'converted' | 'rejected';
   assignedManager?: string;
   contactNotes?: string;
   createdDate: string;
@@ -53,6 +53,7 @@ export interface NotificationRecord {
   date: string;
   targetRole?: string;
   targetUserId?: string; // Linked to client or coach email/id
+  enquiryId?: string;
 }
 
 const isClient = typeof window !== 'undefined';
@@ -102,65 +103,14 @@ export const initDB = () => {
     setLS('gym_clients', []);
   }
 
-  // Initialize Coaches (Marcus Sterling as coach-1)
+  // Initialize Coaches (Empty initially)
   if (!localStorage.getItem('gym_coaches')) {
-    const initialCoaches = [
-      {
-        id: 'coach-1',
-        name: 'Marcus Sterling',
-        email: 'coach1001@thegymfitnesshub.in',
-        phone: '+1 (555) 019-1111',
-        specialization: 'Barbell Strength & CrossFit',
-        role: 'personal_trainer',
-        status: 'active',
-        hireDate: '2026-01-10',
-        activeClientsCount: 0,
-        bio: 'Former competitive powerlifter with 12+ years coaching. Expert in barbell compound lift adjustments.',
-        experienceYears: 12,
-        profilePic: 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?auto=format&fit=crop&q=80&w=150&h=150'
-      }
-    ];
-    setLS('gym_coaches', initialCoaches);
+    setLS('gym_coaches', []);
   }
 
-  // Initialize Memberships (Seed PR Week Starter and clean standard tiers)
+  // Initialize Memberships (Empty initially)
   if (!localStorage.getItem('gym_memberships')) {
-    const initialMemberships = [
-      {
-        id: 'pr-starter',
-        name: 'PR Week Starter Program',
-        type: 'monthly',
-        price: 99,
-        durationMonths: 1,
-        benefits: ['Mobility Assessment', 'CrossFit Basics', 'Weight Training Basics', 'Final Assessment'],
-        status: 'active',
-        billingPeriod: 'monthly',
-        features: ['Mobility Assessment', 'CrossFit Basics', 'Weight Training Basics', 'Final Assessment']
-      },
-      {
-        id: 'basic-monthly',
-        name: 'Basic Monthly Access',
-        type: 'monthly',
-        price: 49,
-        durationMonths: 1,
-        benefits: ['General Floor Gym Access', 'Cardio Deck Usage'],
-        status: 'active',
-        billingPeriod: 'monthly',
-        features: ['General Floor Gym Access', 'Cardio Deck Usage']
-      },
-      {
-        id: 'elite-quarterly',
-        name: 'Elite Quarterly Access',
-        type: 'monthly',
-        price: 129,
-        durationMonths: 3,
-        benefits: ['Full Gym Access', 'All Yoga/HIIT Group Classes'],
-        status: 'active',
-        billingPeriod: 'monthly',
-        features: ['Full Gym Access', 'All Yoga/HIIT Group Classes']
-      }
-    ];
-    setLS('gym_memberships', initialMemberships);
+    setLS('gym_memberships', []);
   }
 
   // Initialize Products (Empty list to fill via Inventory admin panel)
@@ -216,31 +166,9 @@ export const initDB = () => {
     setLS('gym_orders', []);
   }
 
-  // Initialize Staff (Manager Alex Pierce, Receptionist Danny)
+  // Initialize Staff (Empty initially)
   if (!localStorage.getItem('gym_staff')) {
-    const initialStaff: Staff[] = [
-      {
-        id: 'STF-001',
-        name: 'Alex Pierce',
-        email: 'manager@thegymfitnesshub.in',
-        phone: '+1 (555) 019-8801',
-        role: 'manager',
-        status: 'active',
-        hireDate: '2026-01-15',
-        salary: 4500
-      },
-      {
-        id: 'STF-002',
-        name: 'Danny Pink',
-        email: 'danny@thegymfitnesshub.in',
-        phone: '+1 (555) 019-8802',
-        role: 'receptionist',
-        status: 'active',
-        hireDate: '2026-05-10',
-        salary: 2200
-      }
-    ];
-    setLS('gym_staff', initialStaff);
+    setLS('gym_staff', []);
   }
 
   // Initialize Payments

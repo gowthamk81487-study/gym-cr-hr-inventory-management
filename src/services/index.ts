@@ -516,7 +516,8 @@ export const enquiryService = {
       title: 'New enquiry received',
       message: `${enquiry.name} submitted an enquiry regarding the ${enquiry.branch} branch.`,
       type: 'info',
-      targetRole: 'super_admin'
+      targetRole: 'super_admin',
+      enquiryId: newEnq.id
     });
 
     return newEnq;

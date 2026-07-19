@@ -25,6 +25,29 @@ export const authService = {
       throw new Error('Account suspended. Please contact the administrator.');
     }
 
+    // Dynamically initialize coach profile on login if missing
+    if (user.role === 'coach' && user.entityId) {
+      const coaches = db.getCollection<any>('gym_coaches');
+      const exists = coaches.some((c: any) => c.id === user.entityId);
+      if (!exists) {
+        coaches.push({
+          id: user.entityId,
+          name: 'Coach Marcus Sterling',
+          email: user.email,
+          phone: '+1 (555) 019-1111',
+          specialization: 'Barbell Strength & CrossFit',
+          role: 'personal_trainer',
+          status: 'active',
+          hireDate: '2026-01-10',
+          activeClientsCount: 0,
+          experienceYears: 12,
+          bio: 'Former competitive powerlifter with 12+ years coaching. Expert in barbell compound lift adjustments.',
+          profilePic: 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?auto=format&fit=crop&q=80&w=150&h=150'
+        });
+        db.saveCollection('gym_coaches', coaches);
+      }
+    }
+
     // Store session
     db.setItem('gym_current_user', user);
     db.setItem('gym_auth_token', `mock_token_${Date.now()}`);

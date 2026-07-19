@@ -7,14 +7,20 @@ import Button from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/common/Toast';
 import PageLayout from '@/layouts/PageLayout';
-import { notificationService, authService } from '@/services';
-import { NotificationRecord } from '@/services/db';
+import { notificationService, authService, enquiryService } from '@/services';
+import { NotificationRecord, EnquiryRecord } from '@/services/db';
+import Dialog from '@/components/ui/Dialog';
+import Select from '@/components/ui/Select';
 
 export default function NotificationsPage() {
   const { showToast } = useToast();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [filterType, setFilterType] = useState<string>('all');
   const [role, setRole] = useState<string | null>(null);
+
+  // Enquiry detail modal states
+  const [selectedEnquiry, setSelectedEnquiry] = useState<EnquiryRecord | null>(null);
+  const [isViewingEnquiry, setIsViewingEnquiry] = useState(false);
 
   const fetchNotifications = async () => {
     try {
@@ -39,6 +45,55 @@ export default function NotificationsPage() {
       prev.map(n => (n.id === id ? { ...n, read: true } : n))
     );
     showToast('Notification marked as read.', 'success');
+  };
+
+  const handleNotificationClick = async (notif: NotificationRecord) => {
+    if (!notif.read) {
+      await handleMarkAsRead(notif.id);
+    }
+    if (notif.enquiryId) {
+      try {
+        const enqList = await enquiryService.getAll();
+        const found = enqList.find(e => e.id === notif.enquiryId);
+        if (found) {
+          setSelectedEnquiry(found);
+          setIsViewingEnquiry(true);
+        } else {
+          showToast('Enquiry record could not be found.', 'error');
+        }
+      } catch {
+        showToast('Error retrieving enquiry details.', 'error');
+      }
+    }
+  };
+
+  const handleUpdateEnquiryStatus = async (status: any) => {
+    if (!selectedEnquiry) return;
+    try {
+      const enqList = await enquiryService.getAll();
+      const updated = enqList.map(e => e.id === selectedEnquiry.id ? { ...e, status } : e);
+      await enquiryService.save(updated);
+      setSelectedEnquiry({ ...selectedEnquiry, status });
+      showToast('Enquiry status updated.', 'success');
+      fetchNotifications();
+    } catch {
+      showToast('Error updating status.', 'error');
+    }
+  };
+
+  const handleDeleteEnquiry = async () => {
+    if (!selectedEnquiry) return;
+    try {
+      const enqList = await enquiryService.getAll();
+      const updated = enqList.filter(e => e.id !== selectedEnquiry.id);
+      await enquiryService.save(updated);
+      setIsViewingEnquiry(false);
+      setSelectedEnquiry(null);
+      showToast('Enquiry record deleted.', 'success');
+      fetchNotifications();
+    } catch {
+      showToast('Error deleting enquiry.', 'error');
+    }
   };
 
   const handleMarkAllRead = async () => {
@@ -124,7 +179,8 @@ export default function NotificationsPage() {
               {filteredNotifications.map((notif) => (
                 <div
                   key={notif.id}
-                  className={`p-4 flex items-start gap-4 transition-colors ${
+                  onClick={() => handleNotificationClick(notif)}
+                  className={`p-4 flex items-start gap-4 transition-colors cursor-pointer hover:bg-slate-900/40 ${
                     notif.read ? 'bg-transparent opacity-60' : 'bg-slate-900/20'
                   }`}
                 >
@@ -152,7 +208,10 @@ export default function NotificationsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleMarkAsRead(notif.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkAsRead(notif.id);
+                      }}
                       className="p-1 rounded-lg hover:bg-slate-900 shrink-0 self-center text-slate-500 hover:text-slate-300"
                     >
                       <Check className="h-4 w-4" />
@@ -170,6 +229,76 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {selectedEnquiry && (
+        <Dialog isOpen={isViewingEnquiry} onClose={() => { setIsViewingEnquiry(false); setSelectedEnquiry(null); }} title={`Enquiry Details: ${selectedEnquiry.id}`}>
+          <div className="space-y-4 pt-2 text-left text-xs font-semibold">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <p className="text-[9px] uppercase tracking-wider text-slate-500">From Name:</p>
+                <p className="text-slate-200 font-bold mt-0.5">{selectedEnquiry.name}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-wider text-slate-500">Target Branch:</p>
+                <p className="text-blue-400 font-bold mt-0.5 uppercase">{selectedEnquiry.branch}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <p className="text-[9px] uppercase tracking-wider text-slate-500">Email Address:</p>
+                <p className="text-slate-300 font-mono mt-0.5">{selectedEnquiry.email}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-wider text-slate-500">Phone Number:</p>
+                <p className="text-slate-300 font-mono mt-0.5">{selectedEnquiry.phone || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500">Submission Date & Time:</p>
+              <p className="text-slate-300 font-mono mt-0.5">{selectedEnquiry.createdDate}</p>
+            </div>
+
+            <div className="border-t border-slate-900 pt-3">
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">Message Details:</p>
+              <p className="text-slate-400 leading-relaxed p-3 bg-slate-950/40 border border-slate-900 rounded-xl font-semibold">
+                {selectedEnquiry.message}
+              </p>
+            </div>
+
+            <div className="border-t border-slate-900 pt-3 grid grid-cols-2 gap-4">
+              <Select
+                label="Enquiry Status"
+                options={[
+                  { value: 'new', label: 'New' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'replied', label: 'Replied' },
+                  { value: 'closed', label: 'Closed' },
+                  { value: 'converted', label: 'Converted' },
+                  { value: 'rejected', label: 'Rejected' }
+                ]}
+                value={selectedEnquiry.status}
+                onChange={e => handleUpdateEnquiryStatus(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t border-slate-900">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteEnquiry}
+                className="text-rose-500 hover:bg-rose-500/5 text-[11px] flex items-center gap-1"
+              >
+                <Trash2 className="h-4 w-4" /> Delete Enquiry
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => { setIsViewingEnquiry(false); setSelectedEnquiry(null); }} className="text-xs">
+                Close
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </PageLayout>
   );
 }

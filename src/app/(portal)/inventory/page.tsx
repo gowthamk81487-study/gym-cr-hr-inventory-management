@@ -129,8 +129,15 @@ export default function InventoryPage() {
     try {
       const cur = authService.getCurrentUser();
       setCurrentUser(cur);
-      if (cur) setRole(cur.role);
-
+      if (cur) {
+        setRole(cur.role);
+        if (cur.role === 'client') {
+          if (typeof window !== 'undefined') {
+            window.location.replace('/purchase');
+          }
+          return;
+        }
+      }
       const prds = await inventoryService.getProducts();
       setProducts(prds);
       const eq = await inventoryService.getEquipment();

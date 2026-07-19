@@ -78,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           title: 'Services',
           links: [
             { label: 'My Attendance', href: '/attendance', icon: UserCheck },
-            { label: 'Supplements Store', href: '/inventory', icon: Package },
+            { label: 'Supplement/Product Purchase', href: '/purchase', icon: Package },
             { label: 'Payment History', href: '/payments', icon: DollarSign },
           ]
         }

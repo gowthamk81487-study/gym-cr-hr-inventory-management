@@ -93,6 +93,7 @@ export default function ClientsPage() {
   const [filterGoal, setFilterGoal] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPayment, setFilterPayment] = useState('all');
+  const [filterEnquiryStatus, setFilterEnquiryStatus] = useState('all');
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +109,7 @@ export default function ClientsPage() {
 
   // Enquiry Overlays
   const [selectedEnquiry, setSelectedEnquiry] = useState<EnquiryRecord | null>(null);
+  const [isViewingEnquiry, setIsViewingEnquiry] = useState(false);
   const [isAssigningManager, setIsAssigningManager] = useState(false);
   const [isLoggingContact, setIsLoggingContact] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
@@ -175,12 +177,18 @@ export default function ClientsPage() {
   }, [clients, search, filterMembership, filterCoach, filterGender, filterGoal, filterStatus, filterPayment]);
 
   const filteredEnquiries = useMemo(() => {
-    return enquiries.filter(e =>
-      e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.email.toLowerCase().includes(search.toLowerCase()) ||
-      e.phone.includes(search)
-    );
-  }, [enquiries, search]);
+    return enquiries.filter(e => {
+      const matchesSearch =
+        e.name.toLowerCase().includes(search.toLowerCase()) ||
+        e.email.toLowerCase().includes(search.toLowerCase()) ||
+        e.phone.includes(search) ||
+        e.message.toLowerCase().includes(search.toLowerCase());
+
+      const matchesStatus = filterEnquiryStatus === 'all' || e.status === filterEnquiryStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [enquiries, search, filterEnquiryStatus]);
 
   const paginatedClients = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
@@ -216,6 +224,13 @@ export default function ClientsPage() {
     };
 
     try {
+      // Prevent duplicate registrations
+      const list = await clientService.getAll();
+      if (list.some(c => c.email.toLowerCase() === values.email.toLowerCase())) {
+        showToast('A client with this email address already exists.', 'error');
+        return;
+      }
+
       await clientService.create(newClient);
       await authService.createUserAccount(autoEmail, autoPass, 'client', newClient.id);
       
@@ -223,8 +238,9 @@ export default function ClientsPage() {
       setIsShowingCreds(true);
       setIsAdding(false);
       loadData();
-    } catch {
-      showToast('Error registering client.', 'error');
+      showToast('Client account registered successfully!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Error registering client.', 'error');
     }
   };
 
@@ -288,10 +304,30 @@ export default function ClientsPage() {
     const list = [...enquiries];
     const idx = list.findIndex(e => e.id === id);
     if (idx !== -1) {
-      list[idx].status = 'pr_week_scheduled';
+      list[idx].status = 'in_progress';
       await enquiryService.save(list);
       showToast('PR Week Program scheduled. Customer notified.', 'success');
     }
+    loadData();
+  };
+
+  const handleUpdateEnquiryStatus = async (id: string, nextStatus: any) => {
+    const list = [...enquiries];
+    const idx = list.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      list[idx].status = nextStatus;
+      await enquiryService.save(list);
+      showToast('Enquiry status updated.', 'success');
+    }
+    loadData();
+  };
+
+  const handleDeleteEnquiry = async (id: string) => {
+    const list = enquiries.filter(e => e.id !== id);
+    await enquiryService.save(list);
+    showToast('Enquiry deleted successfully.', 'success');
+    setIsViewingEnquiry(false);
+    setSelectedEnquiry(null);
     loadData();
   };
 
@@ -594,6 +630,13 @@ export default function ClientsPage() {
                       </td>
                     </tr>
                   ))}
+                  {paginatedClients.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-500 font-semibold">
+                        No clients registered.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -682,6 +725,13 @@ export default function ClientsPage() {
                       </td>
                     </tr>
                   ))}
+                  {filteredEnquiries.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-500 font-semibold">
+                        No enquiries received.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -819,12 +869,31 @@ export default function ClientsPage() {
                 <FormField label="Age" error={errors.age?.message}><Input type="number" {...register('age')} /></FormField>
                 <FormField label="Emergency Contact Name" error={errors.emergencyContactName?.message}><Input {...register('emergencyContactName')} /></FormField>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Emergency Contact Phone" error={errors.emergencyContactPhone?.message} required><Input {...register('emergencyContactPhone')} /></FormField>
+                <FormField label="Address" error={errors.address?.message} required><Input {...register('address')} /></FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Fitness Goal" error={errors.fitnessGoal?.message} required>
+                  <Select {...register('fitnessGoal')} options={[
+                    { value: 'weight_loss', label: 'Weight Loss' },
+                    { value: 'muscle_gain', label: 'Muscle Gain' },
+                    { value: 'endurance', label: 'Endurance' },
+                    { value: 'general_health', label: 'General Health' }
+                  ]} />
+                </FormField>
+                <FormField label="Blood Group"><Select {...register('bloodGroup')} options={['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => ({ value: b, label: b }))} /></FormField>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
                 <FormField label="Height (cm)"><Input type="number" {...register('heightCm')} /></FormField>
                 <FormField label="Weight (kg)"><Input type="number" {...register('weightKg')} /></FormField>
-                <FormField label="Blood Group"><Select {...register('bloodGroup')} options={['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => ({ value: b, label: b }))} /></FormField>
                 <FormField label="Status"><Select {...register('status')} options={['active', 'inactive', 'pending', 'suspended'].map(s => ({ value: s, label: s }))} /></FormField>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Medical Conditions" error={errors.medicalConditions?.message}><Input {...register('medicalConditions')} /></FormField>
+                <FormField label="Allergies" error={errors.allergies?.message}><Input {...register('allergies')} /></FormField>
+              </div>
+              <FormField label="Notes" error={errors.notes?.message}><Input {...register('notes')} /></FormField>
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
                 <Button variant="outline" size="sm" onClick={() => setIsAdding(false)} className="text-xs">Cancel</Button>
                 <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">Save & Register</Button>
@@ -864,17 +933,49 @@ export default function ClientsPage() {
           >
             {({ register, formState: { errors } }) => (
               <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto pr-1">
-                <FormField label="Full Name" error={errors.name?.message} required><Input {...register('name')} /></FormField>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Email" error={errors.email?.message} required><Input {...register('email')} /></FormField>
+                  <FormField label="Full Name" error={errors.name?.message} required><Input {...register('name')} /></FormField>
+                  <FormField label="Email" error={errors.email?.message} required><Input type="email" {...register('email')} /></FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <FormField label="Phone" error={errors.phone?.message} required><Input {...register('phone')} /></FormField>
+                  <FormField label="DOB" error={errors.dob?.message} required><Input type="date" {...register('dob')} className="scheme-dark" /></FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Membership" required><Select {...register('membershipId')} options={memberships.map(m => ({ value: m.id, label: m.name }))} /></FormField>
                   <FormField label="Status"><Select {...register('status')} options={['active', 'inactive', 'pending', 'suspended'].map(s => ({ value: s, label: s }))} /></FormField>
                 </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <FormField label="Gender" error={errors.gender?.message}><Select {...register('gender')} options={['male', 'female', 'other'].map(g => ({ value: g, label: g }))} /></FormField>
+                  <FormField label="Age" error={errors.age?.message}><Input type="number" {...register('age')} /></FormField>
+                  <FormField label="Emergency Contact Name" error={errors.emergencyContactName?.message}><Input {...register('emergencyContactName')} /></FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Emergency Contact Phone" error={errors.emergencyContactPhone?.message} required><Input {...register('emergencyContactPhone')} /></FormField>
+                  <FormField label="Address" error={errors.address?.message} required><Input {...register('address')} /></FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Fitness Goal" error={errors.fitnessGoal?.message} required>
+                    <Select {...register('fitnessGoal')} options={[
+                      { value: 'weight_loss', label: 'Weight Loss' },
+                      { value: 'muscle_gain', label: 'Muscle Gain' },
+                      { value: 'endurance', label: 'Endurance' },
+                      { value: 'general_health', label: 'General Health' }
+                    ]} />
+                  </FormField>
+                  <FormField label="Blood Group"><Select {...register('bloodGroup')} options={['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => ({ value: b, label: b }))} /></FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Height (cm)"><Input type="number" {...register('heightCm')} /></FormField>
+                  <FormField label="Weight (kg)"><Input type="number" {...register('weightKg')} /></FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Medical Conditions" error={errors.medicalConditions?.message}><Input {...register('medicalConditions')} /></FormField>
+                  <FormField label="Allergies" error={errors.allergies?.message}><Input {...register('allergies')} /></FormField>
+                </div>
+                <FormField label="Notes" error={errors.notes?.message}><Input {...register('notes')} /></FormField>
                 <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-                  <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-xs">Cancel</Button>
+                  <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setSelectedClient(null); }} className="text-xs">Cancel</Button>
                   <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">Save Changes</Button>
                 </div>
               </div>

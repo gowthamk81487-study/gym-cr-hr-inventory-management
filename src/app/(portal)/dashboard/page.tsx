@@ -65,8 +65,8 @@ export default function DashboardPage() {
   const [inventoryForm, setInventoryForm] = useState({ name: '', category: 'supplement', quantity: '', price: '20' });
 
   // Dashboard metrics states
-  const [totalMembersCount, setTotalMembersCount] = useState(645);
-  const [totalRevenueCount, setTotalRevenueCount] = useState(15420);
+  const [totalMembersCount, setTotalMembersCount] = useState(0);
+  const [totalRevenueCount, setTotalRevenueCount] = useState(0);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
   // Stepper progress for 7-Day PR Starter Program (for pending clients)
@@ -84,20 +84,33 @@ export default function DashboardPage() {
 
     setRole(cur.role);
 
-    // Initialize activities
-    const acts = [
-      { id: 'act-1', time: '10 mins ago', type: 'registration', desc: 'Sarah Jenkins enrolled in basic-monthly tier.' },
-      { id: 'act-2', time: '35 mins ago', type: 'transfer', desc: 'Client David Vance assigned to Coach Marcus Sterling.' },
-      { id: 'act-3', time: '1 hour ago', type: 'payment', desc: 'Cleared invoice #INV-9284 for $129 (Elite Plan).' }
-    ];
-    setRecentActivities(acts);
-
     const cls = await clientService.getAll();
-    setTotalMembersCount(cls.length + 540);
-
     const payments = db.getCollection<any>('gym_payments');
-    const rev = payments.filter(p => p.status === 'paid').reduce((acc, p) => acc + p.amount, 0);
-    setTotalRevenueCount(rev || 15420);
+
+    // Dynamically build activities from database state
+    const acts: any[] = [];
+    cls.slice(0, 3).forEach((c: any) => {
+      acts.push({
+        id: `act-reg-${c.id}`,
+        time: 'recently',
+        type: 'registration',
+        desc: `${c.name} registered as a new client.`
+      });
+    });
+    payments.slice(0, 3).forEach((p: any) => {
+      acts.push({
+        id: `act-pay-${p.id}`,
+        time: 'recently',
+        type: 'payment',
+        desc: `Cleared payment of $${p.amount} for client ${p.clientName || 'member'}.`
+      });
+    });
+    setRecentActivities(acts.slice(0, 5));
+
+    setTotalMembersCount(cls.length);
+
+    const rev = payments.filter((p: any) => p.status === 'paid' || p.status === 'approved').reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+    setTotalRevenueCount(rev);
 
     if (cur.role === 'client') {
       const c = cls.find(client => client.id === cur.entityId || client.email.toLowerCase() === cur.email.toLowerCase());
@@ -688,6 +701,9 @@ export default function DashboardPage() {
                     <span className="text-[10px] text-slate-500 font-bold shrink-0">{act.time}</span>
                   </div>
                 ))}
+                {recentActivities.length === 0 && (
+                  <p className="text-center text-slate-500 py-8 text-xs font-semibold">No recent activity.</p>
+                )}
               </div>
             </CardContent>
           </Card>

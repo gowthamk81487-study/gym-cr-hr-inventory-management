@@ -468,21 +468,44 @@ export const reportService = {
     const activeCount = clients.filter(c => c.status === 'active').length;
     const paidSum = payments.filter(p => p.status === 'paid').reduce((acc, p) => acc + p.amount, 0);
 
+    // Calculate dynamic breakdowns
+    const membershipSum = payments
+      .filter(p => p.status === 'paid' && p.membershipName && p.membershipName !== 'One-time' && !p.membershipName.toLowerCase().includes('pt') && !p.membershipName.toLowerCase().includes('personal'))
+      .reduce((acc, p) => acc + p.amount, 0);
+
+    const ptSum = payments
+      .filter(p => p.status === 'paid' && p.membershipName && (p.membershipName.toLowerCase().includes('pt') || p.membershipName.toLowerCase().includes('personal')))
+      .reduce((acc, p) => acc + p.amount, 0);
+
+    const inventorySum = payments
+      .filter(p => p.status === 'paid' && p.membershipName === 'One-time')
+      .reduce((acc, p) => acc + p.amount, 0);
+
+    const attendanceCount = clients.length > 0
+      ? Math.round(clients.reduce((acc, c) => acc + (c.attendanceRate || 0), 0) / clients.length)
+      : 0;
+
+    const coaches = db.getCollection<Coach>('gym_coaches');
+    const topCoaches = coaches
+      .map(co => {
+        const clientCount = clients.filter(c => c.coachId === co.id).length;
+        return { name: co.name, clientCount };
+      })
+      .sort((a, b) => b.clientCount - a.clientCount)
+      .slice(0, 3);
+
     return [
       {
         id: 'rep-curr',
         month: 'July 2026',
-        totalRevenue: paidSum || 15420,
-        activeMemberships: activeCount || 590,
-        attendanceRate: 85,
-        topCoaches: [
-          { name: 'Marcus Sterling', clientCount: 15 },
-          { name: 'Elena Rostova', clientCount: 22 }
-        ],
+        totalRevenue: paidSum,
+        activeMemberships: activeCount,
+        attendanceRate: attendanceCount,
+        topCoaches: topCoaches,
         revenueBreakdown: {
-          memberships: (paidSum * 0.7) || 10800,
-          personalTraining: (paidSum * 0.2) || 3100,
-          inventorySales: (paidSum * 0.1) || 1520
+          memberships: membershipSum,
+          personalTraining: ptSum,
+          inventorySales: inventorySum
         }
       }
     ];

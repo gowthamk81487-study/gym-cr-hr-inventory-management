@@ -256,6 +256,11 @@ export default function NotificationsPage() {
             </div>
 
             <div>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500">Subject:</p>
+              <p className="text-slate-200 font-bold mt-0.5">Membership Inquiry - {selectedEnquiry.branch.toUpperCase()} Branch</p>
+            </div>
+
+            <div>
               <p className="text-[9px] uppercase tracking-wider text-slate-500">Submission Date & Time:</p>
               <p className="text-slate-300 font-mono mt-0.5">{selectedEnquiry.createdDate}</p>
             </div>

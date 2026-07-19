@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Users,
   CreditCard,
@@ -11,7 +11,6 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
-  Activity,
   Calendar,
   DollarSign,
   Briefcase,
@@ -26,9 +25,9 @@ import {
   CheckCircle,
   UserX,
   FileDown,
-  Info
+  Info,
+  Activity
 } from 'lucide-react';
-import { mockMembershipPlans, mockClientMemberships, GymMembershipPlan, ClientMembershipRecord } from '@/mock/memberships';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -41,14 +40,61 @@ import { StatCard } from '@/components/common/StatCard';
 import PageLayout from '@/layouts/PageLayout';
 import Dropdown from '@/components/ui/Dropdown';
 import Pagination from '@/components/ui/Pagination';
+import { db } from '@/services/db';
+import { authService, clientService, notificationService, paymentService } from '@/services';
+import { Client } from '@/types';
+import { exportData } from '@/utils/export';
+
+export interface GymMembershipPlan {
+  id: string;
+  name: string;
+  price: number;
+  durationMonths: number;
+  discount: number;
+  gstPercent: number;
+  enrollmentFee: number;
+  renewalFee: number;
+  freezeAllowed: boolean;
+  maxFreezeDays: number;
+  transferAllowed: boolean;
+  guestPassCount: number;
+  ptSessionsCount: number;
+  dietConsultsCount: number;
+  workoutConsultsCount: number;
+  accessTiming: '24_7' | 'off_peak' | 'daytime' | 'weekends_only';
+  description: string;
+  notes?: string;
+  status?: 'active' | 'archived';
+}
+
+export interface ClientMembershipRecord {
+  id: string;
+  clientId: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  planId: string;
+  planName: string;
+  joinDate: string;
+  expirationDate: string;
+  durationMonths: number;
+  amountPaid: number;
+  paymentMethod: string;
+  status: 'active' | 'renewed' | 'frozen' | 'expired' | 'expiring_soon' | 'cancelled';
+  notes?: string;
+}
 
 export default function MembershipsPage() {
   const { showToast } = useToast();
 
-  // Local state to simulate additions and upgrades
-  const [plans, setPlans] = useState<GymMembershipPlan[]>(mockMembershipPlans);
-  const [memberships, setMemberships] = useState<ClientMembershipRecord[]>(mockClientMemberships);
-  
+  const [role, setRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Database lists
+  const [plans, setPlans] = useState<GymMembershipPlan[]>([]);
+  const [memberships, setMemberships] = useState<ClientMembershipRecord[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
   // Tab toggler
   const [activeTab, setActiveTab] = useState<'dashboard' | 'plans' | 'subscribers'>('dashboard');
 
@@ -63,13 +109,21 @@ export default function MembershipsPage() {
   const [selectedPlan, setSelectedPlan] = useState<GymMembershipPlan | null>(null);
   const [selectedMember, setSelectedMember] = useState<ClientMembershipRecord | null>(null);
 
-  // Overlay Trigger togglers
+  // Overlay triggers
   const [isAddingPlan, setIsAddingPlan] = useState(false);
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [isRenewing, setIsRenewing] = useState(false);
   const [isFreezing, setIsFreezing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Client Purchase state
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchasePlan, setPurchasePlan] = useState<GymMembershipPlan | null>(null);
+  const [purchaseForm, setPurchaseForm] = useState({
+    paymentMethod: 'UPI'
+  });
+  const [activeReceipt, setActiveReceipt] = useState<ClientMembershipRecord | null>(null);
 
   // Form states
   const [planForm, setPlanForm] = useState({
@@ -105,23 +159,48 @@ export default function MembershipsPage() {
   });
 
   const [upgradeForm, setUpgradeForm] = useState({
-    newPlanId: 'premium-vip-yearly'
+    newPlanId: ''
   });
 
-  // 1. Dashboard summary aggregations
+  const loadData = async () => {
+    try {
+      const storedPlans = db.getCollection<GymMembershipPlan>('gym_memberships');
+      setPlans(storedPlans);
+
+      const storedMemberships = db.getCollection<ClientMembershipRecord>('gym_subscriber_memberships');
+      setMemberships(storedMemberships);
+
+      const cls = await clientService.getAll();
+      setClients(cls);
+
+      if (storedPlans.length > 0 && !upgradeForm.newPlanId) {
+        setUpgradeForm({ newPlanId: storedPlans[0].id });
+      }
+    } catch {
+      showToast('Error loading memberships state.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    const cur = authService.getCurrentUser();
+    setCurrentUser(cur);
+    if (cur) {
+      setRole(cur.role);
+    }
+    loadData();
+  }, []);
+
+  // Dashboard summary aggregations
   const dashboardStats = useMemo(() => {
     const active = memberships.filter(m => m.status === 'active' || m.status === 'renewed').length;
     const expiring = memberships.filter(m => m.status === 'expiring_soon').length;
     const expired = memberships.filter(m => m.status === 'expired').length;
     const frozen = memberships.filter(m => m.status === 'frozen').length;
-    const revenue = memberships.reduce((acc, m) => {
-      const planPrice = plans.find(p => p.id === m.planId)?.price || 49;
-      return acc + planPrice;
-    }, 0);
+    const revenue = memberships.reduce((acc, m) => acc + m.amountPaid, 0);
     return { active, expiring, expired, frozen, revenue };
-  }, [memberships, plans]);
+  }, [memberships]);
 
-  // 2. Filtered lists
+  // Filtered lists
   const filteredSubscribers = useMemo(() => {
     return memberships.filter(m => {
       const matchSearch =
@@ -136,7 +215,7 @@ export default function MembershipsPage() {
     });
   }, [memberships, searchQuery, filterPlan, filterStatus]);
 
-  // 3. Paginated slices
+  // Paginated slices
   const paginatedSubscribers = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     return filteredSubscribers.slice(startIdx, startIdx + itemsPerPage);
@@ -144,285 +223,479 @@ export default function MembershipsPage() {
 
   const totalPages = Math.ceil(filteredSubscribers.length / itemsPerPage);
 
+  const clientSubInfo = useMemo(() => {
+    if (!currentUser || role !== 'client') return null;
+    return memberships.find(m => m.clientEmail.toLowerCase() === currentUser.email.toLowerCase() && m.status !== 'cancelled' && m.status !== 'expired');
+  }, [memberships, currentUser, role]);
+
   // Form Handlers
   const handleAddPlanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!planForm.name || !planForm.price) {
-      showToast('Please fill out all required fields.', 'error');
+      showToast('Please fill in all required fields.', 'error');
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsAddingPlan(false);
+    const priceNum = parseFloat(planForm.price);
+    const newPlan: GymMembershipPlan = {
+      id: `plan-${Date.now()}`,
+      name: planForm.name,
+      description: planForm.description,
+      durationMonths: parseInt(planForm.durationMonths, 10),
+      price: priceNum,
+      discount: parseFloat(planForm.discount) || 0,
+      gstPercent: parseFloat(planForm.gstPercent) || 18,
+      enrollmentFee: parseFloat(planForm.enrollmentFee) || 20,
+      renewalFee: parseFloat(planForm.renewalFee) || (priceNum * 0.9),
+      freezeAllowed: planForm.freezeAllowed === 'true',
+      maxFreezeDays: parseInt(planForm.maxFreezeDays, 10) || 30,
+      transferAllowed: planForm.transferAllowed === 'true',
+      guestPassCount: parseInt(planForm.guestPassCount, 10) || 0,
+      ptSessionsCount: parseInt(planForm.ptSessionsCount, 10) || 0,
+      dietConsultsCount: parseInt(planForm.dietConsultsCount, 10) || 0,
+      workoutConsultsCount: parseInt(planForm.workoutConsultsCount, 10) || 0,
+      accessTiming: planForm.accessTiming,
+      notes: planForm.notes,
+      status: 'active'
+    };
 
-      const newPlan: GymMembershipPlan = {
-        id: `plan-${Date.now()}`,
-        name: planForm.name,
-        description: planForm.description,
-        durationMonths: parseInt(planForm.durationMonths, 10),
-        price: parseFloat(planForm.price),
-        discount: parseFloat(planForm.discount),
-        gstPercent: parseFloat(planForm.gstPercent),
-        enrollmentFee: parseFloat(planForm.enrollmentFee),
-        renewalFee: parseFloat(planForm.renewalFee || planForm.price),
-        freezeAllowed: planForm.freezeAllowed === 'true',
-        maxFreezeDays: parseInt(planForm.maxFreezeDays, 10),
-        transferAllowed: planForm.transferAllowed === 'true',
-        guestPassCount: parseInt(planForm.guestPassCount, 10),
-        ptSessionsCount: parseInt(planForm.ptSessionsCount, 10),
-        dietConsultsCount: parseInt(planForm.dietConsultsCount, 10),
-        workoutConsultsCount: parseInt(planForm.workoutConsultsCount, 10),
-        accessTiming: planForm.accessTiming,
-        status: 'active',
-        notes: planForm.notes
-      };
-
-      setPlans([...plans, newPlan]);
-      setPlanForm({
-        name: '',
-        description: '',
-        durationMonths: '1',
-        price: '',
-        discount: '0',
-        gstPercent: '18',
-        enrollmentFee: '20',
-        renewalFee: '',
-        freezeAllowed: 'true',
-        maxFreezeDays: '30',
-        transferAllowed: 'false',
-        guestPassCount: '1',
-        ptSessionsCount: '0',
-        dietConsultsCount: '0',
-        workoutConsultsCount: '1',
-        accessTiming: '24_7',
-        notes: ''
-      });
-      showToast('New membership plan created!', 'success');
-    }, 1200);
+    const updated = [...plans, newPlan];
+    db.saveCollection('gym_memberships', updated);
+    setPlans(updated);
+    setIsAddingPlan(false);
+    showToast('Membership plan tier created successfully!', 'success');
   };
 
   const handleEditPlanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPlan || !planForm.name || !planForm.price) {
-      showToast('Please fill out all required fields.', 'error');
-      return;
-    }
+    if (!selectedPlan) return;
+
+    const priceNum = parseFloat(planForm.price);
+    const updated = plans.map(p => {
+      if (p.id === selectedPlan.id) {
+        return {
+          ...p,
+          name: planForm.name,
+          description: planForm.description,
+          durationMonths: parseInt(planForm.durationMonths, 10),
+          price: priceNum,
+          discount: parseFloat(planForm.discount) || 0,
+          gstPercent: parseFloat(planForm.gstPercent) || 18,
+          enrollmentFee: parseFloat(planForm.enrollmentFee) || 20,
+          renewalFee: parseFloat(planForm.renewalFee) || (priceNum * 0.9),
+          freezeAllowed: planForm.freezeAllowed === 'true',
+          maxFreezeDays: parseInt(planForm.maxFreezeDays, 10) || 30,
+          transferAllowed: planForm.transferAllowed === 'true',
+          guestPassCount: parseInt(planForm.guestPassCount, 10) || 0,
+          ptSessionsCount: parseInt(planForm.ptSessionsCount, 10) || 0,
+          dietConsultsCount: parseInt(planForm.dietConsultsCount, 10) || 0,
+          workoutConsultsCount: parseInt(planForm.workoutConsultsCount, 10) || 0,
+          accessTiming: planForm.accessTiming,
+          notes: planForm.notes
+        };
+      }
+      return p;
+    });
+
+    db.saveCollection('gym_memberships', updated);
+    setPlans(updated);
+    setIsEditingPlan(false);
+    setSelectedPlan(null);
+    showToast('Membership plan tier updated.', 'success');
+  };
+
+  const handleDeletePlan = (id: string) => {
+    const updated = plans.filter(p => p.id !== id);
+    db.saveCollection('gym_memberships', updated);
+    setPlans(updated);
+    showToast('Plan tier deleted.', 'success');
+  };
+
+  // Client Purchase flow
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!purchasePlan || !currentUser) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsEditingPlan(false);
+    try {
+      const now = new Date();
+      const exp = new Date();
+      exp.setMonth(now.getMonth() + purchasePlan.durationMonths);
 
-      const updated = plans.map(p => {
-        if (p.id === selectedPlan.id) {
-          return {
-            ...p,
-            name: planForm.name,
-            description: planForm.description,
-            durationMonths: parseInt(planForm.durationMonths, 10),
-            price: parseFloat(planForm.price),
-            discount: parseFloat(planForm.discount),
-            gstPercent: parseFloat(planForm.gstPercent),
-            enrollmentFee: parseFloat(planForm.enrollmentFee),
-            renewalFee: parseFloat(planForm.renewalFee || planForm.price),
-            freezeAllowed: planForm.freezeAllowed === 'true',
-            maxFreezeDays: parseInt(planForm.maxFreezeDays, 10),
-            transferAllowed: planForm.transferAllowed === 'true',
-            guestPassCount: parseInt(planForm.guestPassCount, 10),
-            ptSessionsCount: parseInt(planForm.ptSessionsCount, 10),
-            dietConsultsCount: parseInt(planForm.dietConsultsCount, 10),
-            workoutConsultsCount: parseInt(planForm.workoutConsultsCount, 10),
-            accessTiming: planForm.accessTiming,
-            notes: planForm.notes
-          };
-        }
-        return p;
+      const newRecord: ClientMembershipRecord = {
+        id: `SUB-${Date.now().toString().slice(-4)}`,
+        clientId: currentUser.entityId || 'CL-001',
+        clientName: currentUser.email.split('@')[0],
+        clientEmail: currentUser.email,
+        clientPhone: 'N/A',
+        planId: purchasePlan.id,
+        planName: purchasePlan.name,
+        joinDate: now.toISOString().split('T')[0],
+        expirationDate: exp.toISOString().split('T')[0],
+        durationMonths: purchasePlan.durationMonths,
+        amountPaid: purchasePlan.price,
+        paymentMethod: purchaseForm.paymentMethod,
+        status: 'active'
+      };
+
+      // Query real client profile details
+      const currentClient = clients.find(c => c.email.toLowerCase() === currentUser.email.toLowerCase());
+      if (currentClient) {
+        newRecord.clientName = currentClient.name;
+        newRecord.clientPhone = currentClient.phone;
+
+        // Update Client profile state
+        currentClient.membershipId = purchasePlan.id;
+        currentClient.paymentStatus = 'paid';
+        currentClient.status = 'active';
+        await clientService.update(currentClient);
+      }
+
+      // 1. Save subscription
+      const list = db.getCollection<ClientMembershipRecord>('gym_subscriber_memberships');
+      list.unshift(newRecord);
+      db.saveCollection('gym_subscriber_memberships', list);
+      setMemberships(list);
+
+      // 2. Add to payments ledger
+      await paymentService.create({
+        id: `PAY-${Date.now().toString().slice(-3)}`,
+        clientId: newRecord.clientId,
+        clientName: newRecord.clientName,
+        amount: newRecord.amountPaid,
+        date: newRecord.joinDate,
+        status: 'paid',
+        paymentMethod: (purchaseForm.paymentMethod.toLowerCase() === 'card' ? 'credit_card' : purchaseForm.paymentMethod.toLowerCase() === 'cash' ? 'cash' : 'upi') as any,
+        membershipName: newRecord.planName
       });
 
-      setPlans(updated);
-      setSelectedPlan(null);
-      showToast('Membership plan updated successfully!', 'success');
-    }, 1000);
+      // 3. Dispatch Notification
+      await notificationService.create({
+        title: 'New Membership Enrolled',
+        message: `${newRecord.clientName} enrolled in ${newRecord.planName}. Mode: ${purchaseForm.paymentMethod}.`,
+        type: 'success',
+        targetRole: 'manager'
+      });
+
+      showToast('Membership purchased successfully!', 'success');
+      setIsPurchasing(false);
+      
+      // Load receipt
+      setActiveReceipt(newRecord);
+      loadData();
+    } catch {
+      showToast('Transaction checkout failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRenewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsRenewing(false);
+    const months = parseInt(renewForm.months, 10);
+    const expDate = new Date(selectedMember.expirationDate);
+    expDate.setMonth(expDate.getMonth() + months);
 
-      const renewed = memberships.map(m => {
-        if (m.id === selectedMember.id) {
-          const currentExp = new Date(m.expirationDate);
-          const addMonths = parseInt(renewForm.months, 10);
-          currentExp.setMonth(currentExp.getMonth() + addMonths);
-          
-          return {
-            ...m,
-            status: 'active' as const,
-            expirationDate: currentExp.toISOString().split('T')[0],
-            paymentStatus: 'paid' as const,
-            renewalHistory: [
-              ...m.renewalHistory,
-              {
-                renewalDate: new Date().toISOString().split('T')[0],
-                amountPaid: parseFloat(renewForm.amountPaid || '49'),
-                method: renewForm.method
-              }
-            ]
-          };
-        }
-        return m;
-      });
+    const updated = memberships.map(m => {
+      if (m.id === selectedMember.id) {
+        return {
+          ...m,
+          expirationDate: expDate.toISOString().split('T')[0],
+          status: 'renewed' as const,
+          amountPaid: m.amountPaid + parseFloat(renewForm.amountPaid || '0'),
+          paymentMethod: renewForm.method
+        };
+      }
+      return m;
+    });
 
-      setMemberships(renewed);
-      setSelectedMember(null);
-      showToast('Membership renewed successfully!', 'success');
-    }, 1200);
+    db.saveCollection('gym_subscriber_memberships', updated);
+    setMemberships(updated);
+    setIsRenewing(false);
+    setSelectedMember(null);
+    showToast('Subscriber membership renewed successfully.', 'success');
   };
 
   const handleFreezeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsFreezing(false);
+    const updated = memberships.map(m => {
+      if (m.id === selectedMember.id) {
+        return {
+          ...m,
+          status: 'frozen' as const,
+          notes: `Frozen from ${freezeForm.startDate} to ${freezeForm.endDate}. Reason: ${freezeForm.reason}`
+        };
+      }
+      return m;
+    });
 
-      const frozen = memberships.map(m => {
-        if (m.id === selectedMember.id) {
-          return {
-            ...m,
-            status: 'frozen' as const,
-            freezeHistory: [
-              ...m.freezeHistory,
-              {
-                startDate: freezeForm.startDate,
-                endDate: freezeForm.endDate,
-                reason: freezeForm.reason
-              }
-            ]
-          };
-        }
-        return m;
-      });
-
-      setMemberships(frozen);
-      setSelectedMember(null);
-      showToast('Membership frozen! Roster access blocked.', 'info');
-    }, 1200);
+    db.saveCollection('gym_subscriber_memberships', updated);
+    setMemberships(updated);
+    setIsFreezing(false);
+    setSelectedMember(null);
+    showToast('Membership access frozen.', 'success');
   };
 
   const handleUpgradeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsUpgrading(false);
+    const newPlan = plans.find(p => p.id === upgradeForm.newPlanId);
+    if (!newPlan) return;
 
-      const upgraded = memberships.map(m => {
-        if (m.id === selectedMember.id) {
-          return {
-            ...m,
-            planId: upgradeForm.newPlanId,
-            status: 'active' as const
-          };
-        }
-        return m;
-      });
+    const updated = memberships.map(m => {
+      if (m.id === selectedMember.id) {
+        return {
+          ...m,
+          planId: newPlan.id,
+          planName: newPlan.name,
+          amountPaid: newPlan.price,
+          status: 'active' as const
+        };
+      }
+      return m;
+    });
 
-      setMemberships(upgraded);
-      setSelectedMember(null);
-      showToast('Plan upgraded! Price differentials charged via Stripe.', 'success');
-    }, 1200);
+    db.saveCollection('gym_subscriber_memberships', updated);
+    setMemberships(updated);
+    setIsUpgrading(false);
+    setSelectedMember(null);
+    showToast('Membership upgraded successfully!', 'success');
   };
 
   const getPlanName = (id: string) => {
-    return plans.find(p => p.id === id)?.name || 'Basic Membership';
+    const plan = plans.find(p => p.id === id);
+    return plan ? plan.name : 'Unknown Tier';
   };
 
   const getPlanPrice = (id: string) => {
-    return plans.find(p => p.id === id)?.price || 49;
+    const plan = plans.find(p => p.id === id);
+    return plan ? plan.price : 0;
   };
 
-  const triggerExport = () => {
-    showToast('Exporting memberships directory (XLSX format)...', 'info');
-    setTimeout(() => {
-      showToast('Export successful! Handed over to downloads.', 'success');
-    }, 1200);
+  const handleExport = (format: 'csv' | 'xlsx' | 'pdf') => {
+    if (filteredSubscribers.length === 0) {
+      showToast('No data available to export.', 'error');
+      return;
+    }
+
+    const headers = ['Subscription ID', 'Member Name', 'Plan Enrolled', 'Date Joined', 'Expiration Date', 'Rate Paid ($)', 'Method', 'Status'];
+    const rows = filteredSubscribers.map(sub => [
+      sub.id,
+      sub.clientName,
+      sub.planName,
+      sub.joinDate,
+      sub.expirationDate,
+      sub.amountPaid,
+      sub.paymentMethod,
+      sub.status
+    ]);
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Memberships_Report_${dateStr}`;
+
+    if (format === 'csv') {
+      exportData.toCSV(filename, headers, rows);
+      showToast('Exporting members to CSV.', 'success');
+    } else if (format === 'xlsx') {
+      exportData.toExcel(filename, headers, rows);
+      showToast('Exporting members to Excel.', 'success');
+    } else if (format === 'pdf') {
+      exportData.toPDF('Active Membership Subscribers', headers, rows, filename);
+      showToast('Exporting members to PDF.', 'success');
+    }
   };
 
-  const duplicatePlan = (plan: GymMembershipPlan) => {
-    const copy: GymMembershipPlan = {
-      ...plan,
-      id: `plan-copy-${Date.now()}`,
-      name: `${plan.name} (Copy)`
-    };
-    setPlans([...plans, copy]);
-    showToast('Plan duplicated successfully.', 'success');
-  };
+  // Render Client Hub
+  if (role === 'client') {
+    return (
+      <PageLayout
+        title="My Membership Portal"
+        description="Verify your current membership duration, renew access, or purchase upgrade options."
+      >
+        <div className="space-y-8 py-2 text-left">
+          {clientSubInfo ? (
+            <Card className="border-blue-500/20 bg-blue-500/5 overflow-hidden relative">
+              <div className="absolute top-0 inset-x-0 h-1 bg-blue-500" />
+              <CardHeader title="Current Active Subscription" action={<Badge variant="blue">{clientSubInfo.status}</Badge>} />
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-300 font-semibold">
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500">Plan Tier:</span>
+                  <p className="text-sm font-bold text-slate-200">{clientSubInfo.planName}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500">Duration Period:</span>
+                  <p className="text-sm font-bold text-slate-200">{clientSubInfo.joinDate} to {clientSubInfo.expirationDate}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500">Rate Paid:</span>
+                  <p className="text-sm font-bold text-emerald-400 font-mono">${clientSubInfo.amountPaid}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-slate-900 text-center py-6">
+              <CardContent className="space-y-2">
+                <CreditCard className="h-8 w-8 text-slate-600 mx-auto" />
+                <h4 className="text-xs font-bold text-slate-200">No Active Membership Plan</h4>
+                <p className="text-[11px] text-slate-500 font-medium max-w-sm mx-auto">
+                  Subscribe to a premium club membership plan below to gain instant access to gym facilities.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-  const archivePlan = (id: string) => {
-    const updated = plans.map(p => {
-      if (p.id === id) {
-        return { ...p, status: (p.status === 'active' ? 'archived' : 'active') as any };
-      }
-      return p;
-    });
-    setPlans(updated);
-    showToast('Plan status updated.', 'info');
-  };
+          {/* Catalog of plans */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-widest">Select Membership Plan</h3>
 
+            {plans.filter(p => p.status === 'active').length === 0 ? (
+              <div className="p-8 text-center text-slate-500 border border-slate-900 rounded-xl font-bold text-xs bg-slate-950/20">
+                No Membership Plans Available
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {plans.filter(p => p.status === 'active').map(plan => (
+                  <Card key={plan.id} className="border-slate-900 flex flex-col justify-between hover:border-blue-500/25">
+                    <CardContent className="space-y-4 pt-6">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-200">{plan.name}</h4>
+                        <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">{plan.durationMonths} Month Duration</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{plan.description}</p>
+                      
+                      <div className="space-y-1.5 text-[10.5px] font-semibold text-slate-400 border-t border-slate-950 pt-3">
+                        <p className="flex justify-between"><span>PT Sessions:</span> <span className="text-slate-200">{plan.ptSessionsCount}x included</span></p>
+                        <p className="flex justify-between"><span>Diet Consults:</span> <span className="text-slate-200">{plan.dietConsultsCount}x included</span></p>
+                        <p className="flex justify-between"><span>Access:</span> <span className="text-slate-200 uppercase font-mono">{plan.accessTiming.replace('_', '/')}</span></p>
+                      </div>
+
+                      <div className="border-t border-slate-950 pt-3">
+                        <span className="text-xl font-black text-white">${plan.price}</span>
+                      </div>
+                    </CardContent>
+                    <div className="p-4 border-t border-slate-950">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        fullWidth
+                        disabled={!!clientSubInfo}
+                        onClick={() => {
+                          setPurchasePlan(plan);
+                          setIsPurchasing(true);
+                        }}
+                        className="text-xs py-1.5"
+                      >
+                        {clientSubInfo ? 'Active Enrolment' : 'Enroll Plan'}
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Purchase Dialog */}
+        {purchasePlan && (
+          <Dialog isOpen={isPurchasing} onClose={() => setIsPurchasing(false)} title={`Enroll Membership: ${purchasePlan.name}`}>
+            <form onSubmit={handlePurchaseSubmit} className="space-y-4 pt-2 text-left">
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-900 text-xs font-semibold text-slate-400 space-y-2">
+                <p><strong className="text-slate-300">Plan Enrolling:</strong> {purchasePlan.name}</p>
+                <p><strong className="text-slate-300">Duration Period:</strong> {purchasePlan.durationMonths} Month(s)</p>
+                <p><strong className="text-slate-300">Amount Due:</strong> <span className="text-emerald-400 font-bold">${purchasePlan.price}</span></p>
+              </div>
+
+              <Select
+                label="Select Payment Method"
+                options={[
+                  { value: 'UPI', label: 'UPI (Paytm, GPay, PhonePe)' },
+                  { value: 'Card', label: 'Credit or Debit Card' },
+                  { value: 'Cash', label: 'Cash Payment at Counter' },
+                  { value: 'Net Banking', label: 'Net Banking transfer' },
+                  { value: 'Other', label: 'Other Wallets' }
+                ]}
+                value={purchaseForm.paymentMethod}
+                onChange={e => setPurchaseForm({ ...purchaseForm, paymentMethod: e.target.value })}
+              />
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+                <Button variant="outline" size="sm" onClick={() => setIsPurchasing(false)} className="text-xs">Cancel</Button>
+                <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">Confirm & Pay</Button>
+              </div>
+            </form>
+          </Dialog>
+        )}
+
+        {/* Receipt invoice popup */}
+        {activeReceipt && (
+          <Dialog isOpen={!!activeReceipt} onClose={() => setActiveReceipt(null)} title="Purchase Confirmation Receipt">
+            <div className="space-y-4 pt-2 text-left text-xs font-semibold">
+              <div className="flex items-center gap-2 bg-emerald-500/5 p-3 rounded-lg border border-emerald-500/15 text-emerald-400">
+                <CheckCircle className="h-5 w-5 shrink-0" />
+                <p>Transaction cleared! Membership successfully activated.</p>
+              </div>
+
+              <div className="border border-slate-900 rounded-xl p-4 space-y-3.5 bg-slate-950/20 font-mono text-[10.5px]">
+                <h4 className="text-center font-black border-b border-slate-900 pb-2 text-slate-200">THE GYM FITNESS CLUB INVOICE</h4>
+                <p><span className="text-slate-500">Subscription ID:</span> {activeReceipt.id}</p>
+                <p><span className="text-slate-500">Client Name:</span> {activeReceipt.clientName}</p>
+                <p><span className="text-slate-500">Plan Selected:</span> {activeReceipt.planName}</p>
+                <p><span className="text-slate-500">Join Date:</span> {activeReceipt.joinDate}</p>
+                <p><span className="text-slate-500">Expiration Date:</span> {activeReceipt.expirationDate}</p>
+                <p><span className="text-slate-500">Payment Method:</span> {activeReceipt.paymentMethod}</p>
+                <p className="border-t border-slate-900 pt-2 font-black text-slate-200"><span className="text-slate-500 font-medium">TOTAL PAID:</span> ${activeReceipt.amountPaid}</p>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-900">
+                <Button variant="primary" size="sm" onClick={() => setActiveReceipt(null)} className="text-xs px-4!">Close Receipt</Button>
+              </div>
+            </div>
+          </Dialog>
+        )}
+      </PageLayout>
+    );
+  }
+
+  // Render Admin View
   return (
     <PageLayout
-      title="Membership Lifecycle Management"
-      description="Create membership tiers, track client subscription terms, freeze accounts, and log renewals."
+      title="Membership Tariff & Subscribers"
+      description="Manage the membership catalog, update subscription lifecycles, and audit active roster."
       actions={
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={triggerExport}
-            className="text-xs py-1.5 px-3! border-slate-800 text-slate-400 hover:text-white"
-          >
-            <FileDown className="h-4 w-4" /> Export Subscribers
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setIsAddingPlan(true)}
-            className="text-xs py-1.5 px-4.5! flex items-center gap-1.5 shadow-lg shadow-blue-500/10"
-          >
-            <Plus className="h-4 w-4" /> Create Plan
-          </Button>
+          {activeTab === 'plans' && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsAddingPlan(true)}
+              className="text-xs py-1.5 px-4.5! flex items-center gap-1.5 shadow-lg shadow-blue-500/10"
+            >
+              <Plus className="h-4 w-4" /> Create Plan Tier
+            </Button>
+          )}
         </div>
       }
     >
-      <div className="space-y-6 py-2">
-        {/* Tab Navigation buttons */}
+      <div className="space-y-6 py-2 text-left">
+        {/* Navigation Tabs */}
         <div className="flex border-b border-slate-900 gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider pb-px">
           {[
-            { id: 'dashboard', label: 'Subscription Dashboard', icon: Layers },
-            { id: 'plans', label: 'Plan Catalog', icon: CreditCard },
-            { id: 'subscribers', label: 'Active Subscribers', icon: Users }
+            { id: 'dashboard', label: 'KPI Summary', icon: Activity },
+            { id: 'plans', label: 'Plan Tariff Catalog', icon: Layers },
+            { id: 'subscribers', label: 'Active Subscribers List', icon: Users }
           ].map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => { setActiveTab(tab.id as any); setSearchQuery(''); }}
                 className={`flex items-center gap-1.5 pb-2.5 px-1 border-b-2 cursor-pointer transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-slate-100'
-                    : 'border-transparent hover:text-slate-300'
+                  activeTab === tab.id ? 'border-blue-500 text-slate-100' : 'border-transparent hover:text-slate-300'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -432,196 +705,166 @@ export default function MembershipsPage() {
           })}
         </div>
 
-        {/* Tab 1: Dashboard */}
+        {/* Tab 1: KPI Dashboard */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6 animate-fadeIn">
-            {/* Stat Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Active Subscriptions" value={dashboardStats.active} icon={CheckCircle} change="Paying monthly" />
-              <StatCard title="Expiring Soon" value={dashboardStats.expiring} icon={Clock} change="Renewals pending" changeType="neutral" />
-              <StatCard title="Frozen Accounts" value={dashboardStats.frozen} icon={AlertTriangle} change="Access locked" changeType="neutral" />
-              <StatCard title="Estimated Revenue" value={`$${dashboardStats.revenue.toLocaleString()}`} icon={DollarSign} change="Stripe MRR estimate" changeType="increase" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+              <StatCard title="Active Members" value={dashboardStats.active} icon={CheckCircle} change="Active keys" />
+              <StatCard title="Expiring Soon" value={dashboardStats.expiring} icon={AlertTriangle} change="Needs renewal contact" changeType="decrease" />
+              <StatCard title="Frozen Accounts" value={dashboardStats.frozen} icon={Clock} change="Suspended access holds" />
+              <StatCard title="Cumulative Sales" value={`$${dashboardStats.revenue.toLocaleString()}`} icon={DollarSign} change="Total subscription sales" changeType="increase" />
             </div>
 
-
-            {/* Recent subscription actions feed */}
             <Card className="border-slate-900">
-              <CardHeader title="Recent Membership Lifecycle Activity" description="Logs of recent checkouts, freezes, and plan renewals" />
-              <CardContent>
-                <div className="space-y-4 text-xs font-semibold text-slate-400">
-                  <div className="flex justify-between items-center py-2 border-b border-slate-900/60">
-                    <p className="text-slate-300">Sarah Jenkins renewed <strong className="text-emerald-400">Basic Monthly</strong> via Stripe gateway.</p>
-                    <span className="text-[10px] text-slate-500">10 mins ago</span>
+              <CardHeader title="Roster Logs" description="Verify subscribers distribution across plan options." />
+              <CardContent className="space-y-4 text-xs font-semibold text-slate-400">
+                {memberships.slice(0, 3).map((sub, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-900 last:border-0 last:pb-0">
+                    <p className="text-slate-300">
+                      {sub.clientName} joined <strong className="text-blue-400">{sub.planName}</strong> plan Period: {sub.joinDate} to {sub.expirationDate}.
+                    </p>
+                    <Badge variant={sub.status === 'active' ? 'emerald' : 'slate'}>{sub.status}</Badge>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-900/60">
-                    <p className="text-slate-300">Marcus Miller frozen membership due to <strong className="text-amber-400">Medical: Shoulder strain</strong>.</p>
-                    <span className="text-[10px] text-slate-500">2 hours ago</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <p className="text-slate-300">Upgrade: Client CL-003 migrated from Elite Quarterly to <strong className="text-blue-400">Premium VIP Yearly</strong>.</p>
-                    <span className="text-[10px] text-slate-500">1 day ago</span>
-                  </div>
-                </div>
+                ))}
+                {memberships.length === 0 && (
+                  <div className="text-center text-slate-500 py-6 font-semibold">No memberships logged.</div>
+                )}
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Tab 2: Plans Catalog */}
+        {/* Tab 2: Plan Catalog */}
         {activeTab === 'plans' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-            {plans.map(plan => (
-              <Card key={plan.id} className={`border-slate-900 flex flex-col justify-between group ${plan.status === 'archived' ? 'opacity-40' : ''}`}>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-200">{plan.name}</h4>
-                      <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10">
-                        {plan.accessTiming} access
-                      </span>
+          <div className="space-y-6">
+            <div className="relative w-full md:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
+              <Input
+                className="pl-9 text-xs"
+                placeholder="Search plan tiers..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {plans.filter(p => p.status === 'active').length === 0 ? (
+              <div className="p-8 text-center text-slate-500 border border-slate-900 rounded-xl font-bold text-xs bg-slate-950/20">
+                No Membership Plans Available
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {plans.filter(p => p.status === 'active').map(plan => (
+                  <Card key={plan.id} className="border-slate-900 flex flex-col justify-between">
+                    <CardContent className="space-y-4 pt-6">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-200">{plan.name}</h4>
+                          <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">{plan.durationMonths} Month Duration</span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                        {plan.description}
+                      </p>
+
+                      <div className="border-t border-slate-950 pt-3">
+                        <span className="text-xl font-black text-white">${plan.price}</span>
+                      </div>
+                    </CardContent>
+
+                    <div className="p-4 border-t border-slate-950 flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPlan(plan);
+                          setPlanForm({
+                            name: plan.name,
+                            description: plan.description,
+                            durationMonths: String(plan.durationMonths),
+                            price: String(plan.price),
+                            discount: String(plan.discount),
+                            gstPercent: String(plan.gstPercent),
+                            enrollmentFee: String(plan.enrollmentFee),
+                            renewalFee: String(plan.renewalFee),
+                            freezeAllowed: String(plan.freezeAllowed),
+                            maxFreezeDays: String(plan.maxFreezeDays),
+                            transferAllowed: String(plan.transferAllowed),
+                            guestPassCount: String(plan.guestPassCount),
+                            ptSessionsCount: String(plan.ptSessionsCount),
+                            dietConsultsCount: String(plan.dietConsultsCount),
+                            workoutConsultsCount: String(plan.workoutConsultsCount),
+                            accessTiming: plan.accessTiming,
+                            notes: plan.notes || ''
+                          });
+                          setIsEditingPlan(true);
+                        }}
+                        className="flex-1 text-[10px] py-1 border-slate-800"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeletePlan(plan.id)}
+                        className="text-[10px] py-1 border-slate-800 text-rose-500 hover:bg-rose-500/5"
+                      >
+                        Delete
+                      </Button>
                     </div>
-                    <Badge variant={plan.status === 'active' ? 'emerald' : 'slate'}>{plan.status}</Badge>
-                  </div>
-
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    {plan.description}
-                  </p>
-
-                  <div className="flex items-baseline gap-1.5 border-t border-slate-950 pt-3">
-                    <span className="text-2xl font-black text-white">${plan.price}</span>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">/ {plan.durationMonths} months</span>
-                  </div>
-
-                  <div className="text-[10px] text-slate-500 font-semibold space-y-1">
-                    <p>• Freeze allowed: {plan.freezeAllowed ? `Yes (${plan.maxFreezeDays} days)` : 'No'}</p>
-                    <p>• Value Add: {plan.ptSessionsCount} PT + {plan.dietConsultsCount} Diet consults</p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-2 border-t border-slate-950">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPlan(plan);
-                        setPlanForm({
-                          name: plan.name,
-                          description: plan.description,
-                          durationMonths: String(plan.durationMonths),
-                          price: String(plan.price),
-                          discount: String(plan.discount || 0),
-                          gstPercent: String(plan.gstPercent || 18),
-                          enrollmentFee: String(plan.enrollmentFee || 0),
-                          renewalFee: String(plan.renewalFee || plan.price),
-                          freezeAllowed: String(plan.freezeAllowed),
-                          maxFreezeDays: String(plan.maxFreezeDays || 30),
-                          transferAllowed: String(plan.transferAllowed || false),
-                          guestPassCount: String(plan.guestPassCount || 0),
-                          ptSessionsCount: String(plan.ptSessionsCount || 0),
-                          dietConsultsCount: String(plan.dietConsultsCount || 0),
-                          workoutConsultsCount: String(plan.workoutConsultsCount || 0),
-                          accessTiming: plan.accessTiming,
-                          notes: plan.notes || ''
-                        });
-                        setIsEditingPlan(true);
-                      }}
-                      className="flex-1 text-[10px] py-1 border-slate-800"
-                    >
-                      <Edit2 className="h-3 w-3" /> Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => duplicatePlan(plan)} className="flex-1 text-[10px] py-1 border-slate-800">
-                      <Copy className="h-3 w-3" /> Duplicate
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => archivePlan(plan.id)}
-                      className={`flex-1 text-[10px] py-1 border-slate-800 ${plan.status === 'active' ? 'text-rose-400' : 'text-emerald-400'}`}
-                    >
-                      {plan.status === 'active' ? 'Archive' : 'Activate'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Tab 3: Active Subscribers Lifecycle grid */}
+        {/* Tab 3: Subscribers List */}
         {activeTab === 'subscribers' && (
-          <div className="space-y-4 animate-fadeIn">
-            {/* Search & Filters */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-900/10 border border-slate-900 rounded-xl p-4">
-              <div className="relative w-full md:max-w-md">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
-                  <Search className="h-4 w-4" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search subscriber by name, ID or phone..."
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-900/10 border border-slate-900 p-4 rounded-xl">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
+                <Input
+                  className="pl-9 text-xs"
+                  placeholder="Search subscribers..."
                   value={searchQuery}
-                  onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                  className="w-full bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-100 placeholder:text-slate-600 font-semibold"
+                  onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <div className="flex gap-3 w-full md:w-auto">
-                <Select
-                  options={[
-                    { value: 'all', label: 'All Plans' },
-                    ...plans.map(p => ({ value: p.id, label: p.name }))
-                  ]}
-                  value={filterPlan}
-                  onChange={e => { setFilterPlan(e.target.value); setCurrentPage(1); }}
-                />
-                <Select
-                  options={[
-                    { value: 'all', label: 'All Statuses' },
-                    { value: 'active', label: 'Active' },
-                    { value: 'expiring_soon', label: 'Expiring Soon' },
-                    { value: 'expired', label: 'Expired' },
-                    { value: 'frozen', label: 'Frozen' },
-                    { value: 'cancelled', label: 'Cancelled' }
-                  ]}
-                  value={filterStatus}
-                  onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                />
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} className="text-xs border-slate-850 hover:text-white">PDF</Button>
+                <Button variant="outline" size="sm" onClick={() => handleExport('xlsx')} className="text-xs border-slate-850 hover:text-white">Excel</Button>
+                <Button variant="outline" size="sm" onClick={() => handleExport('csv')} className="text-xs border-slate-850 hover:text-white">CSV</Button>
               </div>
             </div>
 
-            {/* Data Table */}
             <div className="table-container text-[11px] font-semibold text-slate-400">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[9px] border-b border-slate-900">
-                    <th className="p-3">Client ID</th>
+                  <tr className="bg-slate-950/60 uppercase tracking-wider text-[9px] border-b border-slate-900">
                     <th className="p-3">Client Name</th>
-                    <th className="p-3">Assigned Plan</th>
-                    <th className="p-3">Cycle Joined</th>
+                    <th className="p-3">Enrolled Plan</th>
+                    <th className="p-3">Start Date</th>
                     <th className="p-3">Expiration Date</th>
                     <th className="p-3">Billing Status</th>
-                    <th className="p-3 text-right">Lifecycle Actions</th>
+                    <th className="p-3 font-mono text-right">Clearance Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-900">
                   {paginatedSubscribers.map(sub => (
                     <tr key={sub.id} className="table-row-hover text-slate-300">
-                      <td className="p-3 font-mono text-[10px] text-slate-500">{sub.clientId}</td>
                       <td className="p-3 font-bold text-slate-200">
                         <div>
                           <p>{sub.clientName}</p>
-                          <span className="text-[9px] text-slate-500 font-medium block">{sub.clientPhone}</span>
+                          <span className="text-[9px] text-slate-500 font-mono block">{sub.clientPhone}</span>
                         </div>
                       </td>
-                      <td className="p-3">
-                        <div>
-                          <p className="text-xs text-slate-300">{getPlanName(sub.planId)}</p>
-                          <span className="text-[9px] text-slate-500 block">${getPlanPrice(sub.planId)} / {sub.durationMonths}m</span>
-                        </div>
-                      </td>
+                      <td className="p-3">{sub.planName}</td>
                       <td className="p-3 font-mono text-slate-500">{sub.joinDate}</td>
                       <td className="p-3 font-mono text-slate-500">
-                        <span className={sub.status === 'expiring_soon' ? 'text-amber-400 font-black' : sub.status === 'expired' ? 'text-rose-400 font-black' : ''}>
+                        <span className={sub.status === 'expiring_soon' ? 'text-amber-450 font-bold' : sub.status === 'expired' ? 'text-rose-400' : ''}>
                           {sub.expirationDate}
                         </span>
                       </td>
@@ -660,6 +903,9 @@ export default function MembershipsPage() {
                               icon: Sparkles,
                               onClick: () => {
                                 setSelectedMember(sub);
+                                if (plans.length > 0) {
+                                  setUpgradeForm({ newPlanId: plans[0].id });
+                                }
                                 setIsUpgrading(true);
                               }
                             },
@@ -668,9 +914,9 @@ export default function MembershipsPage() {
                               icon: UserX,
                               danger: true,
                               onClick: () => {
-                                setMemberships(prev =>
-                                  prev.map(m => m.id === sub.id ? { ...m, status: 'cancelled' as const } : m)
-                                );
+                                const list = memberships.map(m => m.id === sub.id ? { ...m, status: 'cancelled' as const } : m);
+                                db.saveCollection('gym_subscriber_memberships', list);
+                                setMemberships(list);
                                 showToast('Membership cancelled.', 'success');
                               }
                             }
@@ -681,7 +927,7 @@ export default function MembershipsPage() {
                   ))}
                   {filteredSubscribers.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-6 text-center text-slate-500 text-xs font-semibold">
+                      <td colSpan={6} className="p-6 text-center text-slate-500 text-xs font-semibold">
                         No client subscriptions match the filters selected.
                       </td>
                     </tr>
@@ -689,8 +935,7 @@ export default function MembershipsPage() {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
+            
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -702,8 +947,7 @@ export default function MembershipsPage() {
         )}
       </div>
 
-      {/* OVERLAY DIALOGS & FORMS */}
-
+      {/* OVERLAY FORMS */}
       {/* 1. Add Membership Plan Modal */}
       <Dialog isOpen={isAddingPlan} onClose={() => setIsAddingPlan(false)} title="Create Membership Plan">
         <form onSubmit={handleAddPlanSubmit} className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -796,147 +1040,16 @@ export default function MembershipsPage() {
             <Button variant="outline" size="sm" onClick={() => setIsAddingPlan(false)} className="text-xs">
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
+            <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">
               Create Plan
             </Button>
           </div>
         </form>
       </Dialog>
 
-      {/* 2. Quick Renew Modal */}
-      {selectedMember && (
-        <Dialog isOpen={isRenewing} onClose={() => setIsRenewing(false)} title={`Renew Subscription: ${selectedMember.clientName}`}>
-          <form onSubmit={handleRenewSubmit} className="space-y-4 pt-2">
-            
-            <Select
-              label="Renewal Term Extension"
-              options={[
-                { value: '1', label: 'Extend 1 Month' },
-                { value: '3', label: 'Extend 3 Months' },
-                { value: '12', label: 'Extend 1 Year (12 Months)' }
-              ]}
-              value={renewForm.months}
-              onChange={e => setRenewForm({ ...renewForm, months: e.target.value })}
-            />
-
-            <Input
-              label="Amount Billed ($)"
-              type="number"
-              value={renewForm.amountPaid}
-              onChange={e => setRenewForm({ ...renewForm, amountPaid: e.target.value })}
-            />
-
-            <Select
-              label="Receipt Gateway Method"
-              options={[
-                { value: 'Stripe Credit', label: 'Stripe Card Processor' },
-                { value: 'UPI Wallet', label: 'Direct UPI App QR' },
-                { value: 'Cash On Counter', label: 'Cash desk register' }
-              ]}
-              value={renewForm.method}
-              onChange={e => setRenewForm({ ...renewForm, method: e.target.value })}
-            />
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-              <Button variant="outline" size="sm" onClick={() => setIsRenewing(false)} className="text-xs">
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-                Execute Renewal
-              </Button>
-            </div>
-          </form>
-        </Dialog>
-      )}
-
-      {/* 3. Freeze Membership Modal */}
-      {selectedMember && (
-        <Dialog isOpen={isFreezing} onClose={() => setIsFreezing(false)} title={`Freeze Account: ${selectedMember.clientName}`}>
-          <form onSubmit={handleFreezeSubmit} className="space-y-4 pt-2">
-            
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Freeze Start Date"
-                type="date"
-                required
-                value={freezeForm.startDate}
-                onChange={e => setFreezeForm({ ...freezeForm, startDate: e.target.value })}
-                className="scheme-dark"
-              />
-              <Input
-                label="Freeze End Date"
-                type="date"
-                required
-                value={freezeForm.endDate}
-                onChange={e => setFreezeForm({ ...freezeForm, endDate: e.target.value })}
-                className="scheme-dark"
-              />
-            </div>
-
-            <Select
-              label="Reason for Freeze"
-              options={[
-                { value: 'Medical: Shoulder strain', label: 'Medical Injury (Shoulder / Spine)' },
-                { value: 'Temporary travel out of city', label: 'Business / Holiday Travel' },
-                { value: 'Personal family emergency', label: 'Personal emergency' }
-              ]}
-              value={freezeForm.reason}
-              onChange={e => setFreezeForm({ ...freezeForm, reason: e.target.value })}
-            />
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-              <Button variant="outline" size="sm" onClick={() => setIsFreezing(false)} className="text-xs">
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-                Freeze Subscription
-              </Button>
-            </div>
-          </form>
-        </Dialog>
-      )}
-
-      {/* 4. Upgrade Membership Modal */}
-      {selectedMember && (
-        <Dialog isOpen={isUpgrading} onClose={() => setIsUpgrading(false)} title={`Upgrade Plan: ${selectedMember.clientName}`}>
-          <form onSubmit={handleUpgradeSubmit} className="space-y-4 pt-2">
-            
-            <Input
-              label="Current Assigned Plan"
-              disabled
-              value={getPlanName(selectedMember.planId)}
-            />
-
-            <Select
-              label="Select Upgrade Plan"
-              required
-              options={plans
-                .filter(p => p.id !== selectedMember.planId && p.status === 'active')
-                .map(p => ({ value: p.id, label: `${p.name} ($${p.price} / ${p.durationMonths}m)` }))
-              }
-              value={upgradeForm.newPlanId}
-              onChange={e => setUpgradeForm({ ...upgradeForm, newPlanId: e.target.value })}
-            />
-
-            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-900 text-xs text-slate-500 font-medium">
-              <span className="font-bold text-slate-300 block mb-1">Upgrade Math Differential</span>
-              Calculated automatically based on unused term days. Target diff invoice will post directly to client billing.
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-              <Button variant="outline" size="sm" onClick={() => setIsUpgrading(false)} className="text-xs">
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-                Confirm Upgrade
-              </Button>
-            </div>
-          </form>
-        </Dialog>
-      )}
-      {/* 5. Edit Membership Plan Modal */}
+      {/* 2. Edit Membership Plan Modal */}
       {selectedPlan && (
-        <Dialog isOpen={isEditingPlan} onClose={() => { setIsEditingPlan(false); setSelectedPlan(null); }} title="Modify Membership Plan">
+        <Dialog isOpen={isEditingPlan} onClose={() => { setIsEditingPlan(false); setSelectedPlan(null); }} title="Edit Membership Details">
           <form onSubmit={handleEditPlanSubmit} className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-4">
               <Input
@@ -985,38 +1098,13 @@ export default function MembershipsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Select
-                label="Freeze Allowed"
-                options={[
-                  { value: 'true', label: 'Allow Freezing' },
-                  { value: 'false', label: 'Block Freezing' }
-                ]}
-                value={planForm.freezeAllowed}
-                onChange={e => setPlanForm({ ...planForm, freezeAllowed: e.target.value })}
-              />
-              <Input
-                label="Max Freeze Days"
-                type="number"
-                value={planForm.maxFreezeDays}
-                onChange={e => setPlanForm({ ...planForm, maxFreezeDays: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              <Input label="Guest Passes" type="number" value={planForm.guestPassCount} onChange={e => setPlanForm({ ...planForm, guestPassCount: e.target.value })} />
-              <Input label="PT Sessions" type="number" value={planForm.ptSessionsCount} onChange={e => setPlanForm({ ...planForm, ptSessionsCount: e.target.value })} />
-              <Input label="Diet Consults" type="number" value={planForm.dietConsultsCount} onChange={e => setPlanForm({ ...planForm, dietConsultsCount: e.target.value })} />
-              <Input label="Workout Plan" type="number" value={planForm.workoutConsultsCount} onChange={e => setPlanForm({ ...planForm, workoutConsultsCount: e.target.value })} />
-            </div>
-
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Plan Description</label>
               <textarea
                 rows={2}
                 value={planForm.description}
                 onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
-                className="bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 transition-all font-semibold"
+                className="bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl p-3 text-xs text-slate-100 transition-all font-semibold"
               />
             </div>
 
@@ -1024,7 +1112,7 @@ export default function MembershipsPage() {
               <Button variant="outline" size="sm" onClick={() => { setIsEditingPlan(false); setSelectedPlan(null); }} className="text-xs">
                 Cancel
               </Button>
-              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
+              <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">
                 Save Changes
               </Button>
             </div>
@@ -1032,6 +1120,132 @@ export default function MembershipsPage() {
         </Dialog>
       )}
 
+      {/* 3. Quick Renew Modal */}
+      {selectedMember && (
+        <Dialog isOpen={isRenewing} onClose={() => { setIsRenewing(false); setSelectedMember(null); }} title="Quick Membership Renewal">
+          <form onSubmit={handleRenewSubmit} className="space-y-4 pt-2">
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-900 text-xs font-semibold text-slate-400 space-y-2">
+              <p><strong className="text-slate-300">Subscriber Name:</strong> {selectedMember.clientName}</p>
+              <p><strong className="text-slate-300">Active Plan:</strong> {selectedMember.planName}</p>
+              <p><strong className="text-slate-300">Expiration Date:</strong> {selectedMember.expirationDate}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                label="Months to Add"
+                options={[
+                  { value: '1', label: '1 Month' },
+                  { value: '3', label: '3 Months' },
+                  { value: '6', label: '6 Months' },
+                  { value: '12', label: '12 Months' }
+                ]}
+                value={renewForm.months}
+                onChange={e => {
+                  const months = e.target.value;
+                  const price = String(getPlanPrice(selectedMember.planId) * parseInt(months, 10));
+                  setRenewForm({ ...renewForm, months, amountPaid: price });
+                }}
+              />
+              <Input
+                label="Renewal Fee ($)"
+                required
+                value={renewForm.amountPaid}
+                onChange={e => setRenewForm({ ...renewForm, amountPaid: e.target.value })}
+              />
+            </div>
+
+            <Select
+              label="Billing Payment Method"
+              options={[
+                { value: 'UPI', label: 'UPI (QR Code / Mobile Apps)' },
+                { value: 'Card', label: 'Credit or Debit Card' },
+                { value: 'Cash', label: 'Cash Payment at Counter' },
+                { value: 'Net Banking', label: 'Net Banking transfer' },
+                { value: 'Other', label: 'Other Wallets' }
+              ]}
+              value={renewForm.method}
+              onChange={e => setRenewForm({ ...renewForm, method: e.target.value })}
+            />
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => { setIsRenewing(false); setSelectedMember(null); }} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">
+                Confirm Renewal
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+
+      {/* 4. Freeze Account Modal */}
+      {selectedMember && (
+        <Dialog isOpen={isFreezing} onClose={() => { setIsFreezing(false); setSelectedMember(null); }} title="Apply Account Freeze Hold">
+          <form onSubmit={handleFreezeSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Freeze Hold Start Date"
+                type="date"
+                required
+                value={freezeForm.startDate}
+                onChange={e => setFreezeForm({ ...freezeForm, startDate: e.target.value })}
+              />
+              <Input
+                label="Freeze Hold End Date"
+                type="date"
+                required
+                value={freezeForm.endDate}
+                onChange={e => setFreezeForm({ ...freezeForm, endDate: e.target.value })}
+              />
+            </div>
+
+            <Input
+              label="Reason for Freeze Hold"
+              value={freezeForm.reason}
+              onChange={e => setFreezeForm({ ...freezeForm, reason: e.target.value })}
+              placeholder="e.g. Travel, Injury convalescence"
+            />
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => { setIsFreezing(false); setSelectedMember(null); }} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">
+                Apply Hold
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+
+      {/* 5. Upgrade Plan Modal */}
+      {selectedMember && (
+        <Dialog isOpen={isUpgrading} onClose={() => { setIsUpgrading(false); setSelectedMember(null); }} title="Upgrade Member Plan Level">
+          <form onSubmit={handleUpgradeSubmit} className="space-y-4 pt-2 text-left">
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-900 text-xs font-semibold text-slate-400 space-y-2">
+              <p><strong className="text-slate-300">Subscriber Name:</strong> {selectedMember.clientName}</p>
+              <p><strong className="text-slate-300">Current Plan:</strong> {selectedMember.planName}</p>
+            </div>
+
+            <Select
+              label="Select Upgrade Target Plan"
+              options={plans.filter(p => p.id !== selectedMember.planId).map(p => ({ value: p.id, label: `${p.name} ($${p.price})` }))}
+              value={upgradeForm.newPlanId}
+              onChange={e => setUpgradeForm({ ...upgradeForm, newPlanId: e.target.value })}
+            />
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => { setIsUpgrading(false); setSelectedMember(null); }} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit" className="text-xs px-4!">
+                Confirm Upgrade
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
     </PageLayout>
   );
 }

@@ -66,8 +66,11 @@ export default function DashboardPage() {
 
   // Dashboard metrics states
   const [totalMembersCount, setTotalMembersCount] = useState(0);
+  const [activeMembershipsCount, setActiveMembershipsCount] = useState(0);
+  const [todayAttendanceCount, setTodayAttendanceCount] = useState(0);
   const [totalRevenueCount, setTotalRevenueCount] = useState(0);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [products, setProducts] = useState<GymProduct[]>([]);
 
   // Stepper progress for 7-Day PR Starter Program (for pending clients)
   const [prDayCompleted, setPrDayCompleted] = useState<number>(0);
@@ -86,6 +89,18 @@ export default function DashboardPage() {
 
     const cls = await clientService.getAll();
     const payments = db.getCollection<any>('gym_payments');
+
+    const subs = db.getCollection<any>('gym_subscriber_memberships');
+    const activeSubs = subs.filter((s: any) => s.status === 'active' || s.status === 'renewed').length;
+    setActiveMembershipsCount(activeSubs);
+
+    const prds = await inventoryService.getProducts();
+    setProducts(prds);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const attLogs = db.getCollection<any>('gym_attendance');
+    const todayLogs = attLogs.filter((l: any) => l.checkIn && l.checkIn.startsWith(todayStr)).length;
+    setTodayAttendanceCount(todayLogs);
 
     // Dynamically build activities from database state
     const acts: any[] = [];
@@ -644,7 +659,7 @@ export default function DashboardPage() {
           />
           <StatCard
             title="Active Memberships"
-            value={totalMembersCount - 35}
+            value={activeMembershipsCount}
             change="+5 new today"
             changeType="increase"
             icon={CreditCard}
@@ -660,7 +675,7 @@ export default function DashboardPage() {
           />
           <StatCard
             title="Daily Attendance"
-            value={180}
+            value={todayAttendanceCount}
             change="-4% vs yesterday"
             changeType="decrease"
             icon={Activity}
@@ -722,13 +737,18 @@ export default function DashboardPage() {
               />
               <CardContent>
                 <div className="space-y-3 text-xs font-semibold text-slate-300">
-                  <div className="flex justify-between items-center bg-slate-950/60 p-2.5 rounded border border-slate-900">
-                    <div>
-                      <h5>Whey Protein Hydrolyzed</h5>
-                      <span className="text-[8px] text-slate-500 uppercase">supplement</span>
+                  {products.filter(p => p.currentStock <= p.minStock).map(p => (
+                    <div key={p.id} className="flex justify-between items-center bg-slate-950/60 p-2.5 rounded border border-slate-900">
+                      <div>
+                        <h5 className="truncate max-w-[150px]">{p.name}</h5>
+                        <span className="text-[8px] text-slate-500 uppercase">{p.category}</span>
+                      </div>
+                      <span className="text-rose-400 font-bold">{p.currentStock} remaining</span>
                     </div>
-                    <span className="text-rose-400 font-bold">2 left</span>
-                  </div>
+                  ))}
+                  {products.filter(p => p.currentStock <= p.minStock).length === 0 && (
+                    <p className="text-center text-slate-500 py-4 font-bold text-[10px] uppercase tracking-wider">All stocks optimal</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -13,6 +13,7 @@ import PageLayout from '@/layouts/PageLayout';
 import { coachService, authService } from '@/services';
 import { Coach, Client } from '@/types';
 import { db } from '@/services/db';
+import { exportData } from '@/utils/export';
 
 export default function CoachesPage() {
   const { showToast } = useToast();
@@ -454,6 +455,38 @@ export default function CoachesPage() {
     c.specialization.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleExportCoaches = (format: 'csv' | 'xlsx' | 'pdf') => {
+    if (filteredCoaches.length === 0) {
+      showToast('No coach data to export.', 'error');
+      return;
+    }
+
+    const headers = ['Coach ID', 'Full Name', 'Email', 'Phone', 'Specialization', 'Years of Experience', 'Active Clients'];
+    const rows = filteredCoaches.map(co => [
+      co.id,
+      co.name,
+      co.email,
+      co.phone,
+      co.specialization,
+      co.experienceYears,
+      co.activeClientsCount
+    ]);
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Coaches_Report_${dateStr}`;
+
+    if (format === 'csv') {
+      exportData.toCSV(filename, headers, rows);
+      showToast('Exporting coaches to CSV.', 'success');
+    } else if (format === 'xlsx') {
+      exportData.toExcel(filename, headers, rows);
+      showToast('Exporting coaches to Excel.', 'success');
+    } else if (format === 'pdf') {
+      exportData.toPDF('Fitness Coaches Roster Directory', headers, rows, filename);
+      showToast('Exporting coaches to PDF print.', 'success');
+    }
+  };
+
   return (
     <PageLayout
       title="Coach CRM Registry"
@@ -470,18 +503,25 @@ export default function CoachesPage() {
       }
     >
       <div className="space-y-6 py-2">
-        {/* Search */}
-        <div className="relative w-full md:max-w-md">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
-            <Search className="h-4 w-4" />
-          </span>
-          <input
-            type="text"
-            placeholder="Search coaches by name or specialization..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-100 placeholder:text-slate-600 font-semibold"
-          />
+        {/* Search & Export */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-950/40 p-4 border border-slate-900 rounded-2xl">
+          <div className="relative w-full sm:max-w-md">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+              <Search className="h-4 w-4" />
+            </span>
+            <input
+              type="text"
+              placeholder="Search coaches by name or specialization..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-100 placeholder:text-slate-600 font-semibold"
+            />
+          </div>
+          <div className="flex gap-2 self-stretch sm:self-auto justify-end">
+            <Button variant="outline" size="sm" onClick={() => handleExportCoaches('pdf')} className="text-xs border-slate-850 hover:text-white">PDF</Button>
+            <Button variant="outline" size="sm" onClick={() => handleExportCoaches('xlsx')} className="text-xs border-slate-850 hover:text-white">Excel</Button>
+            <Button variant="outline" size="sm" onClick={() => handleExportCoaches('csv')} className="text-xs border-slate-850 hover:text-white">CSV</Button>
+          </div>
         </div>
 
         {/* Coaches Grid */}

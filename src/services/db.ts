@@ -4,11 +4,6 @@
  * Manages state in localStorage for real-time persistence across route changes
  */
 
-import { mockClients, mockCoaches } from '@/mock/clients';
-import { mockMemberships } from '@/mock/data';
-import { mockProducts, mockEquipment, mockSuppliers, mockPurchaseOrders } from '@/mock/inventory';
-import { mockAssignedWorkouts, mockAssignedDiets, mockWorkoutTemplates, mockDietTemplates, mockMeals, mockExercises } from '@/mock/fitness';
-import { mockAttendanceLogs } from '@/mock/attendance';
 import { Staff } from '@/types';
 
 export interface UserRecord {

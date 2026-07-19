@@ -33,6 +33,7 @@ import {
 import { clientService, coachService, membershipService, paymentService, authService } from '@/services';
 import { enquiryService } from '@/services/index';
 import { Client, Coach, Membership } from '@/types';
+import { exportData } from '@/utils/export';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -197,6 +198,40 @@ export default function ClientsPage() {
 
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
 
+  const handleExportClients = (format: 'csv' | 'xlsx' | 'pdf') => {
+    if (filteredClients.length === 0) {
+      showToast('No client data to export.', 'error');
+      return;
+    }
+
+    const headers = ['Client ID', 'Full Name', 'Email', 'Phone', 'Membership Plan', 'Assigned Coach', 'Attendance Rate (%)', 'Status', 'Billing status'];
+    const rows = filteredClients.map(c => [
+      c.id,
+      c.name,
+      c.email,
+      c.phone,
+      getPlanName(c.membershipId),
+      getCoachName(c.coachId),
+      c.attendanceRate,
+      c.status,
+      c.paymentStatus
+    ]);
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Clients_Report_${dateStr}`;
+
+    if (format === 'csv') {
+      exportData.toCSV(filename, headers, rows);
+      showToast('Exporting clients to CSV.', 'success');
+    } else if (format === 'xlsx') {
+      exportData.toExcel(filename, headers, rows);
+      showToast('Exporting clients to Excel.', 'success');
+    } else if (format === 'pdf') {
+      exportData.toPDF('Member Client CRM Registry', headers, rows, filename);
+      showToast('Exporting clients to PDF print.', 'success');
+    }
+  };
+
   // Form Submissions
   const handleAddSubmit = async (values: ClientFormValues) => {
     const bmi = Number((values.weightKg / Math.pow(values.heightCm / 100, 2)).toFixed(1));
@@ -278,7 +313,7 @@ export default function ClientsPage() {
     const idx = list.findIndex(e => e.id === selectedEnquiry.id);
     if (idx !== -1) {
       list[idx].assignedManager = assignedManager;
-      list[idx].status = 'contacted';
+      list[idx].status = 'in_progress';
       await enquiryService.save(list);
       showToast(`Manager assigned to enquiry!`, 'success');
     }
@@ -292,7 +327,7 @@ export default function ClientsPage() {
     const idx = list.findIndex(e => e.id === selectedEnquiry.id);
     if (idx !== -1) {
       list[idx].contactNotes = contactNotes;
-      list[idx].status = 'contacted';
+      list[idx].status = 'replied';
       await enquiryService.save(list);
       showToast('Contact logs updated.', 'success');
     }
@@ -486,6 +521,11 @@ export default function ClientsPage() {
                     onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
                     className="w-full bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-100 placeholder:text-slate-600 font-semibold"
                   />
+                </div>
+                <div className="flex gap-2 self-stretch md:self-auto justify-end">
+                  <Button variant="outline" size="sm" onClick={() => handleExportClients('pdf')} className="text-xs border-slate-850 hover:text-white">PDF</Button>
+                  <Button variant="outline" size="sm" onClick={() => handleExportClients('xlsx')} className="text-xs border-slate-850 hover:text-white">Excel</Button>
+                  <Button variant="outline" size="sm" onClick={() => handleExportClients('csv')} className="text-xs border-slate-850 hover:text-white">CSV</Button>
                 </div>
               </div>
               

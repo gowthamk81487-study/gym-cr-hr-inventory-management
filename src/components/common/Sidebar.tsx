@@ -72,13 +72,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             { label: 'My Workouts', href: '/workouts', icon: Zap },
             { label: 'My Diets', href: '/diets', icon: Utensils },
             { label: 'My Membership', href: '/memberships', icon: CreditCard },
+            { label: 'Personal Training', href: '/personal-training', icon: Dumbbell },
           ]
         },
         {
           title: 'Services',
           links: [
             { label: 'My Attendance', href: '/attendance', icon: UserCheck },
-            { label: 'Supplement/Product Purchase', href: '/purchase', icon: Package },
+            { label: 'Product Purchase', href: '/product-purchase', icon: Package },
             { label: 'Payment History', href: '/payments', icon: DollarSign },
           ]
         }
@@ -100,6 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           links: [
             { label: 'My Clients', href: '/clients', icon: Users },
             { label: 'My Profile', href: '/coaches', icon: Dumbbell },
+            { label: 'Personal Training', href: '/personal-training', icon: Zap },
           ]
         },
         {
@@ -118,47 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       ];
     }
 
-    // Manager
-    if (role === 'manager') {
-      return [
-        {
-          title: 'Core Panel',
-          links: [
-            { label: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
-            { label: 'Alert Feed', href: '/notifications', icon: Bell },
-            { label: 'Analytics Reports', href: '/reports', icon: BarChart3 },
-            { label: 'System Settings', href: '/settings', icon: Settings },
-          ]
-        },
-        {
-          title: 'Client Management (CRM)',
-          links: [
-            { label: 'Client Database', href: '/clients', icon: Users },
-            { label: 'Coach Roster', href: '/coaches', icon: Dumbbell },
-            { label: 'Interactive Matching', href: '/coach-assignment', icon: UserCheck },
-            { label: 'Transfer Records', href: '/coach-transfer', icon: History },
-          ]
-        },
-        {
-          title: 'Fitness & Memberships',
-          links: [
-            { label: 'Workout Protocols', href: '/workouts', icon: Zap },
-            { label: 'Nutrition Schedules', href: '/diets', icon: Utensils },
-            { label: 'Membership Tiers', href: '/memberships', icon: CreditCard },
-          ]
-        },
-        {
-          title: 'Operations',
-          links: [
-            { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
-            { label: 'Club Inventory', href: '/inventory', icon: Package },
-            { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
-          ]
-        }
-      ];
-    }
-
-    // Super Admin
+    // Manager and Super Admin share administrative sidebar
     return [
       {
         title: 'Core Panel',
@@ -170,10 +132,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         ]
       },
       {
-        title: 'Client Management (CRM)',
+        title: 'Client CRM & Roster',
         links: [
           { label: 'Client Database', href: '/clients', icon: Users },
           { label: 'Coach Roster', href: '/coaches', icon: Dumbbell },
+          { label: 'Managers Registry', href: '/managers', icon: ShieldCheck },
           { label: 'Interactive Matching', href: '/coach-assignment', icon: UserCheck },
           { label: 'Transfer Records', href: '/coach-transfer', icon: History },
         ]
@@ -184,14 +147,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           { label: 'Workout Protocols', href: '/workouts', icon: Zap },
           { label: 'Nutrition Schedules', href: '/diets', icon: Utensils },
           { label: 'Membership Tiers', href: '/memberships', icon: CreditCard },
+          { label: 'Personal Training', href: '/personal-training', icon: Dumbbell },
         ]
       },
       {
         title: 'Operations',
         links: [
           { label: 'HR Administration', href: '/hr', icon: ShieldCheck },
+          { label: 'Contact Enquiries', href: '/contact-enquiries', icon: Bell },
           { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
           { label: 'Club Inventory', href: '/inventory', icon: Package },
+          { label: 'Product Purchase', href: '/product-purchase', icon: Package },
           { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
         ]
       }

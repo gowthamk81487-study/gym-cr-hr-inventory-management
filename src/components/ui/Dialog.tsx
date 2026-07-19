@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../utils';
 import Button from './Button';
@@ -22,9 +23,15 @@ export const Dialog: React.FC<DialogProps> = ({
   footer,
   size = 'md'
 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Prevent background scrolling when open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && mounted) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -32,9 +39,21 @@ export const Dialog: React.FC<DialogProps> = ({
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, mounted]);
+
+  // Bind escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const sizes = {
     sm: 'max-w-md',
@@ -43,18 +62,18 @@ export const Dialog: React.FC<DialogProps> = ({
     xl: 'max-w-4xl'
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 w-screen h-screen">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300"
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300 w-full h-full"
         onClick={onClose}
       />
 
       {/* Modal Container */}
       <div
         className={cn(
-          'relative w-full glass-panel rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up',
+          'relative w-full glass-panel rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up z-10',
           sizes[size]
         )}
       >
@@ -67,7 +86,7 @@ export const Dialog: React.FC<DialogProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto text-slate-300 text-sm space-y-4">
+        <div className="p-6 overflow-y-auto text-slate-300 text-sm space-y-4 flex-1">
           {children}
         </div>
 
@@ -78,7 +97,9 @@ export const Dialog: React.FC<DialogProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
+
 export default Dialog;

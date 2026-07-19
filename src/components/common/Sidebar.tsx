@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -9,7 +9,6 @@ import {
   Dumbbell,
   UserCheck,
   History,
-  Flame,
   Utensils,
   CreditCard,
   Package,
@@ -22,6 +21,7 @@ import {
   Zap
 } from 'lucide-react';
 import { cn } from '@/utils';
+import { authService } from '@/services';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -42,48 +42,165 @@ interface SidebarSection {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
+  const [role, setRole] = useState<'super_admin' | 'manager' | 'coach' | 'client' | null>(null);
 
-  const sections: SidebarSection[] = [
-    {
-      title: 'Core Panel',
-      links: [
-        { label: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
-        { label: 'Alert Feed', href: '/notifications', icon: Bell, badgeKey: 'unreadNotifications' },
-        { label: 'Analytics Reports', href: '/reports', icon: BarChart3 },
-        { label: 'System Settings', href: '/settings', icon: Settings },
-      ]
-    },
-    {
-      title: 'Client Management (CRM)',
-      links: [
-        { label: 'Client Database', href: '/clients', icon: Users },
-        { label: 'Coach Roster', href: '/coaches', icon: Dumbbell },
-        { label: 'Interactive Matching', href: '/coach-assignment', icon: UserCheck },
-        { label: 'Transfer Records', href: '/coach-transfer', icon: History },
-      ]
-    },
-    {
-      title: 'Fitness & Memberships',
-      links: [
-        { label: 'Workout Protocols', href: '/workouts', icon: Zap },
-        { label: 'Nutrition Schedules', href: '/diets', icon: Utensils },
-        { label: 'Membership Tiers', href: '/memberships', icon: CreditCard },
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
-        { label: 'HR Administration', href: '/hr', icon: ShieldCheck },
-        { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
-        { label: 'Club Inventory', href: '/inventory', icon: Package },
-        { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
-      ]
+  useEffect(() => {
+    const cur = authService.getCurrentUser();
+    if (cur) {
+      setRole(cur.role);
     }
-  ];
+  }, []);
+
+  // Define full sections list and filter based on role
+  const getFilteredSections = (): SidebarSection[] => {
+    if (!role) return [];
+
+    if (role === 'client') {
+      return [
+        {
+          title: 'Client Portal',
+          links: [
+            { label: 'Client Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { label: 'My Alerts', href: '/notifications', icon: Bell },
+            { label: 'My Settings', href: '/settings', icon: Settings },
+          ]
+        },
+        {
+          title: 'My Fitness Hub',
+          links: [
+            { label: 'My Workouts', href: '/workouts', icon: Zap },
+            { label: 'My Diets', href: '/diets', icon: Utensils },
+            { label: 'My Membership', href: '/memberships', icon: CreditCard },
+          ]
+        },
+        {
+          title: 'Services',
+          links: [
+            { label: 'My Attendance', href: '/attendance', icon: UserCheck },
+            { label: 'Supplements Store', href: '/inventory', icon: Package },
+            { label: 'Payment History', href: '/payments', icon: DollarSign },
+          ]
+        }
+      ];
+    }
+
+    if (role === 'coach') {
+      return [
+        {
+          title: 'Coach Panel',
+          links: [
+            { label: 'Coach Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { label: 'Alert Feed', href: '/notifications', icon: Bell },
+            { label: 'System Settings', href: '/settings', icon: Settings },
+          ]
+        },
+        {
+          title: 'Client Management',
+          links: [
+            { label: 'My Clients', href: '/clients', icon: Users },
+            { label: 'My Profile', href: '/coaches', icon: Dumbbell },
+          ]
+        },
+        {
+          title: 'Training & Diet',
+          links: [
+            { label: 'Workout Templates', href: '/workouts', icon: Zap },
+            { label: 'Diet Templates', href: '/diets', icon: Utensils },
+          ]
+        },
+        {
+          title: 'Operations',
+          links: [
+            { label: 'Review Attendance', href: '/attendance', icon: UserCheck },
+          ]
+        }
+      ];
+    }
+
+    // Manager
+    if (role === 'manager') {
+      return [
+        {
+          title: 'Core Panel',
+          links: [
+            { label: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { label: 'Alert Feed', href: '/notifications', icon: Bell },
+            { label: 'Analytics Reports', href: '/reports', icon: BarChart3 },
+            { label: 'System Settings', href: '/settings', icon: Settings },
+          ]
+        },
+        {
+          title: 'Client Management (CRM)',
+          links: [
+            { label: 'Client Database', href: '/clients', icon: Users },
+            { label: 'Coach Roster', href: '/coaches', icon: Dumbbell },
+            { label: 'Interactive Matching', href: '/coach-assignment', icon: UserCheck },
+            { label: 'Transfer Records', href: '/coach-transfer', icon: History },
+          ]
+        },
+        {
+          title: 'Fitness & Memberships',
+          links: [
+            { label: 'Workout Protocols', href: '/workouts', icon: Zap },
+            { label: 'Nutrition Schedules', href: '/diets', icon: Utensils },
+            { label: 'Membership Tiers', href: '/memberships', icon: CreditCard },
+          ]
+        },
+        {
+          title: 'Operations',
+          links: [
+            { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
+            { label: 'Club Inventory', href: '/inventory', icon: Package },
+            { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
+          ]
+        }
+      ];
+    }
+
+    // Super Admin
+    return [
+      {
+        title: 'Core Panel',
+        links: [
+          { label: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
+          { label: 'Alert Feed', href: '/notifications', icon: Bell },
+          { label: 'Analytics Reports', href: '/reports', icon: BarChart3 },
+          { label: 'System Settings', href: '/settings', icon: Settings },
+        ]
+      },
+      {
+        title: 'Client Management (CRM)',
+        links: [
+          { label: 'Client Database', href: '/clients', icon: Users },
+          { label: 'Coach Roster', href: '/coaches', icon: Dumbbell },
+          { label: 'Interactive Matching', href: '/coach-assignment', icon: UserCheck },
+          { label: 'Transfer Records', href: '/coach-transfer', icon: History },
+        ]
+      },
+      {
+        title: 'Fitness & Memberships',
+        links: [
+          { label: 'Workout Protocols', href: '/workouts', icon: Zap },
+          { label: 'Nutrition Schedules', href: '/diets', icon: Utensils },
+          { label: 'Membership Tiers', href: '/memberships', icon: CreditCard },
+        ]
+      },
+      {
+        title: 'Operations',
+        links: [
+          { label: 'HR Administration', href: '/hr', icon: ShieldCheck },
+          { label: 'Member Attendance', href: '/attendance', icon: UserCheck },
+          { label: 'Club Inventory', href: '/inventory', icon: Package },
+          { label: 'Payment Ledger', href: '/payments', icon: DollarSign },
+        ]
+      }
+    ];
+  };
+
+  const sections = getFilteredSections();
 
   return (
     <>
-      {/* Sidebar Container */}
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 w-64 bg-slate-950/90 backdrop-blur-xl border-r border-slate-900 flex flex-col transition-transform duration-300 desktop:translate-x-0',
@@ -97,14 +214,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <Dumbbell className="h-4.5 w-4.5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white leading-none">Gym HR</h1>
+              <h1 className="text-sm font-bold text-white leading-none">The Gym</h1>
               <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
-                Provolution
+                Fitness Hub
               </span>
             </div>
           </Link>
           
-          {/* Close button for mobile drawer */}
           {onClose && (
             <button
               onClick={onClose}
@@ -157,14 +273,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Footer Brand Label */}
         <div className="p-4 border-t border-slate-900 text-center">
           <p className="text-[10px] text-slate-600 font-medium">
-            Provolution Technologies © 2026
+            The Gym Fitness Hub © 2026
           </p>
           <p className="text-[8px] text-slate-700 tracking-wider font-semibold uppercase mt-0.5">
-            Portal v1.0.0 (MVP)
+            Enterprise Client Portal
           </p>
         </div>
       </aside>
     </>
   );
 };
+
 export default Sidebar;

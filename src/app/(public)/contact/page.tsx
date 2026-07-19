@@ -1,19 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Send, HelpCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Send } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Card, { CardContent } from '@/components/ui/Card';
 import { useToast } from '@/components/common/Toast';
+import { enquiryService } from '@/services';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', branch: 'downtown', msg: '' });
   const [isSending, setIsSending] = useState(false);
   const { showToast } = useToast();
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.msg) {
       showToast('Please fill out all required fields.', 'error');
@@ -21,11 +22,21 @@ export default function ContactPage() {
     }
     
     setIsSending(true);
-    setTimeout(() => {
-      setIsSending(false);
+    try {
+      await enquiryService.create({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        branch: formData.branch,
+        message: formData.msg
+      });
+      showToast('Inquiry submitted successfully! Our system managers have been notified.', 'success');
       setFormData({ name: '', email: '', phone: '', branch: 'downtown', msg: '' });
-      showToast('Message sent successfully! A simulated support ticket was logged.', 'success');
-    }, 1500);
+    } catch {
+      showToast('Error sending inquiry.', 'error');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -67,7 +78,6 @@ export default function ContactPage() {
 
           {/* Map Frame Decorator */}
           <div className="h-48 rounded-xl border border-slate-900 bg-slate-950 flex flex-col items-center justify-center text-center p-4 relative overflow-hidden">
-            {/* Visual grid backdrop */}
             <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-10" />
             <MapPin className="h-8 w-8 text-blue-500 animate-pulse-slow mb-2 relative z-10" />
             <h5 className="text-[10px] font-bold uppercase tracking-wider text-slate-300 relative z-10">San Francisco Branch Map</h5>

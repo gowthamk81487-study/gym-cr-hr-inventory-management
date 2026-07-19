@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Package,
   Plus,
   Search,
   Filter,
   Eye,
-  Edit2,
   Trash2,
   MoreVertical,
   Activity,
@@ -23,18 +22,12 @@ import {
   ChevronRight,
   TrendingUp,
   DollarSign,
-  Briefcase
+  Briefcase,
+  ShoppingCart,
+  Heart,
+  Tag,
+  CreditCard
 } from 'lucide-react';
-import {
-  mockProducts,
-  mockEquipment,
-  mockSuppliers,
-  mockPurchaseOrders,
-  GymProduct,
-  GymEquipment,
-  GymSupplier,
-  GymPurchaseOrder
-} from '@/mock/inventory';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -47,17 +40,36 @@ import { StatCard } from '@/components/common/StatCard';
 import PageLayout from '@/layouts/PageLayout';
 import Dropdown from '@/components/ui/Dropdown';
 import Pagination from '@/components/ui/Pagination';
+import { inventoryService, authService, orderService, notificationService } from '@/services';
+import { GymProduct, GymEquipment, GymSupplier, GymPurchaseOrder } from '@/mock/inventory';
+import { OrderRecord } from '@/services/db';
 
 export default function InventoryPage() {
   const { showToast } = useToast();
 
-  // Local State
-  const [products, setProducts] = useState<GymProduct[]>(mockProducts);
-  const [equipmentList, setEquipmentList] = useState<GymEquipment[]>(mockEquipment);
-  const [suppliers, setSuppliers] = useState<GymSupplier[]>(mockSuppliers);
-  const [purchaseOrders, setPurchaseOrders] = useState<GymPurchaseOrder[]>(mockPurchaseOrders);
+  // Session state
+  const [role, setRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Local Admin State
+  const [products, setProducts] = useState<GymProduct[]>([]);
+  const [equipmentList, setEquipmentList] = useState<GymEquipment[]>([]);
+  const [suppliers, setSuppliers] = useState<GymSupplier[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<GymPurchaseOrder[]>([]);
   
-  // Tab Navigation
+  // Client Shop State
+  const [cart, setCart] = useState<{ product: GymProduct; quantity: number }[]>([]);
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [shopTab, setShopTab] = useState<'browse' | 'orders'>('browse');
+  const [selectedShopPrd, setSelectedShopPrd] = useState<GymProduct | null>(null);
+  const [isViewingCart, setIsViewingCart] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutForm, setCheckoutForm] = useState({
+    address: '100 Fitness St, San Francisco, CA',
+    paymentMode: 'gateway'
+  });
+
+  // Tab Navigation for Admin
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'equipment' | 'orders' | 'alerts'>('dashboard');
 
   // Search & Filter parameters
@@ -106,6 +118,33 @@ export default function InventoryPage() {
   const [serviceForm, setServiceForm] = useState({
     notes: 'Belt alignment check. Clean motor compartment.'
   });
+
+  const loadData = async () => {
+    try {
+      const cur = authService.getCurrentUser();
+      setCurrentUser(cur);
+      if (cur) setRole(cur.role);
+
+      const prds = await inventoryService.getProducts();
+      setProducts(prds);
+      const eq = await inventoryService.getEquipment();
+      setEquipmentList(eq);
+      const sups = await inventoryService.getSuppliers();
+      setSuppliers(sups);
+      const pos = await inventoryService.getPOs();
+      setPurchaseOrders(pos);
+
+      // Load client orders
+      const ords = await orderService.getAll();
+      setOrders(ords);
+    } catch {
+      showToast('Error loading inventory.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // 1. Dashboard summary stats
   const dashboardStats = useMemo(() => {
@@ -170,7 +209,7 @@ export default function InventoryPage() {
   const totalPagesAlerts = Math.ceil(lowStockItems.length / itemsPerPage);
 
   // Form Handlers
-  const handleAddProductSubmit = (e: React.FormEvent) => {
+  const handleAddProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name || !productForm.sku) {
       showToast('Please fill out all required fields.', 'error');
@@ -178,10 +217,7 @@ export default function InventoryPage() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsAddingProduct(false);
-
+    try {
       const newPrd: GymProduct = {
         id: `PRD-${Date.now().toString().slice(-3)}`,
         name: productForm.name,
@@ -201,7 +237,11 @@ export default function InventoryPage() {
         description: productForm.description
       };
 
-      setProducts([newPrd, ...products]);
+      const updated = [newPrd, ...products];
+      await inventoryService.saveProducts(updated);
+      setProducts(updated);
+
+      setIsAddingProduct(false);
       setProductForm({
         name: '',
         sku: '',
@@ -217,16 +257,17 @@ export default function InventoryPage() {
         description: ''
       });
       showToast('Product created successfully!', 'success');
-    }, 1200);
+    } catch {
+      showToast('Error registering product.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePOSubmit = (e: React.FormEvent) => {
+  const handlePOSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsAddingPO(false);
-
+    try {
       const newPO: GymPurchaseOrder = {
         poNumber: `PO-${Date.now().toString().slice(-6)}`,
         supplierName: poForm.supplierName,
@@ -238,24 +279,29 @@ export default function InventoryPage() {
         status: 'ordered'
       };
 
-      setPurchaseOrders([newPO, ...purchaseOrders]);
+      const updated = [newPO, ...purchaseOrders];
+      await inventoryService.savePOs(updated);
+      setPurchaseOrders(updated);
+
+      setIsAddingPO(false);
       showToast('Purchase Order sent to supplier!', 'success');
-    }, 1200);
+    } catch {
+      showToast('PO failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleServiceSubmit = (e: React.FormEvent) => {
+  const handleServiceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEquipment) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsServicing(false);
-
+    try {
       const updated = equipmentList.map(eq => {
         if (eq.id === selectedEquipment.id) {
           const nextDate = new Date();
-          nextDate.setDate(nextDate.getDate() + 90); // 90 days cycle
+          nextDate.setDate(nextDate.getDate() + 90);
           return {
             ...eq,
             condition: 'excellent' as const,
@@ -267,23 +313,392 @@ export default function InventoryPage() {
         return eq;
       });
 
+      await inventoryService.saveEquipment(updated);
       setEquipmentList(updated);
       setSelectedEquipment(null);
-      showToast('Equipment serviced and operational status restored.', 'success');
-    }, 1200);
+      setIsServicing(false);
+      showToast('Equipment serviced successfully.', 'success');
+    } catch {
+      showToast('Error saving logs.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const duplicateProduct = (prd: GymProduct) => {
+  const duplicateProduct = async (prd: GymProduct) => {
     const copy: GymProduct = {
       ...prd,
       id: `PRD-copy-${Date.now()}`,
       name: `${prd.name} (Copy)`,
       sku: `${prd.sku}-COPY`
     };
-    setProducts([copy, ...products]);
+    const updated = [copy, ...products];
+    await inventoryService.saveProducts(updated);
+    setProducts(updated);
     showToast('Product duplicated.', 'success');
   };
 
+  // Client Store functions
+  const handleAddToCart = (product: GymProduct) => {
+    if (product.currentStock <= 0) {
+      showToast('Product is currently out of stock!', 'error');
+      return;
+    }
+
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        if (existing.quantity >= product.currentStock) {
+          showToast('Cannot add more than available stock limit.', 'error');
+          return prev;
+        }
+        return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+    showToast('Added to cart.', 'success');
+  };
+
+  const handleRemoveFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const cartTotal = useMemo(() => {
+    return cart.reduce((acc, item) => acc + (item.product.sellingPrice * item.quantity), 0);
+  }, [cart]);
+
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cart.length === 0) return;
+
+    setIsLoading(true);
+    try {
+      // 1. Create order
+      const newOrder = await orderService.create({
+        clientId: currentUser?.entityId || 'CL-001',
+        clientName: currentUser?.email || 'Client Member',
+        items: cart.map(item => ({
+          productId: item.product.id,
+          name: item.product.name,
+          brand: item.product.brand,
+          quantity: item.quantity,
+          price: item.product.sellingPrice
+        })),
+        totalAmount: cartTotal,
+        paymentMethod: checkoutForm.paymentMode
+      });
+
+      // 2. Deplete inventory stocks
+      const updatedPrds = products.map(p => {
+        const cartItem = cart.find(item => item.product.id === p.id);
+        if (cartItem) {
+          const nextStock = Math.max(0, p.currentStock - cartItem.quantity);
+          
+          // Trigger low stock notifications if thresholds breached
+          if (nextStock <= p.minStock) {
+            notificationService.create({
+              title: `Low stock alert: ${p.name}`,
+              message: `${p.name} stock level is currently at ${nextStock} units. Restock advised.`,
+              type: 'warning',
+              targetRole: 'manager'
+            });
+          }
+          return { ...p, currentStock: nextStock };
+        }
+        return p;
+      });
+
+      await inventoryService.saveProducts(updatedPrds);
+      setProducts(updatedPrds);
+
+      // Trigger order alert notification
+      await notificationService.create({
+        title: 'New Store Order Received',
+        message: `Order ${newOrder.id} for $${newOrder.totalAmount} was checked out.`,
+        type: 'success',
+        targetRole: 'manager'
+      });
+
+      showToast('Checkout successful! Mock payment logged.', 'success');
+      setCart([]);
+      setIsCheckoutOpen(false);
+      setIsViewingCart(false);
+      loadData();
+    } catch {
+      showToast('Checkout failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // CLIENT SHOP DIRECTORY
+  if (role === 'client') {
+    const myOrders = orders.filter(o => o.clientId === currentUser?.entityId);
+    const shopProducts = products.filter(p => p.category === 'supplements' || p.category === 'merchandise');
+
+    return (
+      <PageLayout
+        title="Supplements & Gear Store"
+        description="Browse fitness powders, multi-vitamins, and club branded apparel items."
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsViewingCart(true)}
+              className="text-xs py-1.5 px-4! flex items-center gap-1.5 border-slate-800 text-slate-300 hover:text-white"
+            >
+              <ShoppingCart className="h-4.5 w-4.5" />
+              <span>Cart ({cart.length})</span>
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6 py-2">
+          {/* Shop Navigation */}
+          <div className="flex border-b border-slate-900 gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider pb-px">
+            <button
+              onClick={() => setShopTab('browse')}
+              className={`flex items-center gap-1.5 pb-2.5 px-1 border-b-2 cursor-pointer transition-colors ${
+                shopTab === 'browse' ? 'border-blue-500 text-slate-100' : 'border-transparent hover:text-slate-300'
+              }`}
+            >
+              <Package className="h-4 w-4" /> Browse Catalog
+            </button>
+            <button
+              onClick={() => setShopTab('orders')}
+              className={`flex items-center gap-1.5 pb-2.5 px-1 border-b-2 cursor-pointer transition-colors ${
+                shopTab === 'orders' ? 'border-blue-500 text-slate-100' : 'border-transparent hover:text-slate-300'
+              }`}
+            >
+              <Clock className="h-4 w-4" /> Order History
+            </button>
+          </div>
+
+          {/* Browse Shop */}
+          {shopTab === 'browse' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {shopProducts.slice(0, 12).map(p => (
+                <Card key={p.id} className="border-slate-900 text-left flex flex-col justify-between relative group hover:border-blue-500/20">
+                  <CardContent className="space-y-4 pt-6">
+                    <div className="h-40 bg-slate-950/60 rounded-xl border border-slate-900 flex items-center justify-center text-slate-600 overflow-hidden relative">
+                      <span className="font-mono text-[9px] uppercase tracking-wider">[ Product Image Mock ]</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-xs font-bold text-slate-200 line-clamp-1">{p.name}</h4>
+                        <span className="text-[10px] font-mono text-emerald-400">${p.sellingPrice}</span>
+                      </div>
+                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">{p.brand} • {p.category}</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedShopPrd(p)}
+                        className="flex-1 text-[10px] py-1 border-slate-800 text-slate-400 hover:text-white"
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleAddToCart(p)}
+                        className="flex-1 text-[10px] py-1"
+                      >
+                        Add to Cart
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Client Order History */}
+          {shopTab === 'orders' && (
+            <div className="table-container text-[11px] font-semibold text-slate-400">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-950/60 uppercase tracking-wider text-[9px] border-b border-slate-900">
+                    <th className="p-3">Order ID</th>
+                    <th className="p-3">Purchased Items</th>
+                    <th className="p-3">Order Date</th>
+                    <th className="p-3">Payment Method</th>
+                    <th className="p-3 font-mono">Total Amount</th>
+                    <th className="p-3">Delivery Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-900">
+                  {myOrders.map(o => (
+                    <tr key={o.id} className="table-row-hover text-slate-300">
+                      <td className="p-3 font-mono text-[10px] text-slate-500">{o.id}</td>
+                      <td className="p-3">
+                        <div className="space-y-0.5">
+                          {o.items.map((item, idx) => (
+                            <p key={idx} className="text-xs font-bold text-slate-200">
+                              {item.quantity}x {item.name} ({item.brand})
+                            </p>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3 font-mono text-slate-500">{o.createdDate}</td>
+                      <td className="p-3 uppercase text-[9px] text-blue-400">{o.paymentMethod}</td>
+                      <td className="p-3 font-mono text-emerald-400">${o.totalAmount}</td>
+                      <td className="p-3">
+                        <Badge variant="emerald">{o.status}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                  {myOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-500">
+                        No orders recorded.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* View Details Shop Modal */}
+        {selectedShopPrd && (
+          <Dialog isOpen={!!selectedShopPrd} onClose={() => setSelectedShopPrd(null)} title={selectedShopPrd.name} size="md">
+            <div className="space-y-4 pt-2 text-left">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <span className="text-slate-500 uppercase text-[9px]">Brand</span>
+                  <p className="font-bold text-slate-200">{selectedShopPrd.brand}</p>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-slate-500 uppercase text-[9px]">Selling Price</span>
+                  <p className="font-bold text-emerald-400">${selectedShopPrd.sellingPrice}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-slate-500 uppercase text-[9px] block">Product Description</span>
+                <p className="text-xs text-slate-400 leading-relaxed font-semibold">
+                  {selectedShopPrd.description || 'Club supply certified fitness product.'}
+                </p>
+              </div>
+
+              <div className="space-y-2 border-t border-slate-900 pt-3 text-xs">
+                <h5 className="font-bold text-slate-300 uppercase tracking-wider text-[9px] mb-1">Nutrition & Directions</h5>
+                <p className="text-slate-400 leading-relaxed">
+                  Consume 1 scoop with 250ml water post training. Store in a dry cool place. Keep out of reach of children.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+                <Button variant="outline" size="sm" onClick={() => setSelectedShopPrd(null)} className="text-xs">
+                  Close details
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    handleAddToCart(selectedShopPrd);
+                    setSelectedShopPrd(null);
+                  }}
+                  className="text-xs px-4!"
+                >
+                  Add to Cart
+                </Button>
+              </div>
+            </div>
+          </Dialog>
+        )}
+
+        {/* View Cart Drawer Overlay */}
+        <Dialog isOpen={isViewingCart} onClose={() => setIsViewingCart(false)} title="My Shopping Cart">
+          <div className="space-y-4 pt-2 text-left">
+            <div className="divide-y divide-slate-900/60 max-h-60 overflow-y-auto">
+              {cart.map((item) => (
+                <div key={item.product.id} className="py-2.5 flex justify-between items-center text-xs">
+                  <div>
+                    <h5 className="font-bold text-slate-200">{item.product.name}</h5>
+                    <span className="text-[9px] text-slate-500 font-semibold">{item.quantity}x @ ${item.product.sellingPrice} each</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveFromCart(item.product.id)}
+                    className="p-1 rounded text-rose-500 hover:bg-slate-900"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              {cart.length === 0 && (
+                <p className="text-center text-slate-500 py-6 font-semibold">Your cart is empty.</p>
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="border-t border-slate-900 pt-3 space-y-3 font-semibold text-xs">
+                <div className="flex justify-between text-slate-200">
+                  <span>Cart Total:</span>
+                  <span className="font-mono text-emerald-400">${cartTotal}</span>
+                </div>
+                <div className="flex justify-end gap-3 pt-1">
+                  <Button variant="outline" size="sm" onClick={() => setIsViewingCart(false)} className="text-xs">
+                    Continue shopping
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={() => setIsCheckoutOpen(true)} className="text-xs px-4!">
+                    Proceed to checkout
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Dialog>
+
+        {/* Checkout Modal Dialog */}
+        <Dialog isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} title="Shop Checkout Process">
+          <form onSubmit={handleCheckout} className="space-y-4 pt-2 text-left">
+            <Input
+              label="Shipping Address"
+              required
+              value={checkoutForm.address}
+              onChange={e => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
+            />
+            
+            <Select
+              label="Select Payment Method"
+              options={[
+                { value: 'gateway', label: 'Stripe Gateway' },
+                { value: 'cash', label: 'Pay on Counter' },
+                { value: 'upi', label: 'UPI / QR QR Remittance' }
+              ]}
+              value={checkoutForm.paymentMode}
+              onChange={e => setCheckoutForm({ ...checkoutForm, paymentMode: e.target.value })}
+            />
+
+            <div className="border-t border-slate-900 pt-3 flex justify-between items-center text-xs font-semibold">
+              <span className="text-slate-400">Total Bill Amount:</span>
+              <span className="font-mono text-emerald-400">${cartTotal}</span>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => setIsCheckoutOpen(false)} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-5! bg-emerald-600 hover:bg-emerald-500 border-emerald-500">
+                Confirm order
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      </PageLayout>
+    );
+  }
+
+  // ADMIN / MANAGER INVENTORY PORTAL VIEW
   const triggerExport = () => {
     showToast('Exporting inventory spreadsheets...', 'info');
     setTimeout(() => {
@@ -345,7 +760,6 @@ export default function InventoryPage() {
         {/* Tab 1: Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Total Products" value={dashboardStats.totalPrds} icon={Package} change="In stock catalog" />
               <StatCard title="Low Stock Items" value={dashboardStats.lowStock} icon={AlertTriangle} change="Reorder alerts" changeType={dashboardStats.lowStock > 0 ? 'decrease' : 'neutral'} />
@@ -353,7 +767,6 @@ export default function InventoryPage() {
               <StatCard title="Inventory Value" value={`$${Math.round(dashboardStats.totalVal).toLocaleString()}`} icon={DollarSign} change="Purchase cost aggregate" changeType="increase" />
             </div>
 
-            {/* AI Demand forecasting stubs banner */}
             <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex gap-3 items-start">
                 <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
@@ -449,21 +862,6 @@ export default function InventoryPage() {
                               label: 'Duplicate Product',
                               icon: Copy,
                               onClick: () => duplicateProduct(prd)
-                            },
-                            {
-                              label: 'Deplete Stock (-1)',
-                              icon: Trash2,
-                              danger: true,
-                              onClick: () => {
-                                const updated = products.map(p => {
-                                  if (p.id === prd.id && p.currentStock > 0) {
-                                    return { ...p, currentStock: p.currentStock - 1 };
-                                  }
-                                  return p;
-                                });
-                                setProducts(updated);
-                                showToast('Stock quantity depleted.', 'info');
-                              }
                             }
                           ]}
                         />
@@ -634,43 +1032,19 @@ export default function InventoryPage() {
                       </td>
                     </tr>
                   ))}
-                  {lowStockItems.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="p-6 text-center text-slate-500 text-xs font-semibold">
-                        All supply thresholds are normal.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
-
-            <Pagination currentPage={currentPage} totalPages={totalPagesAlerts} onPageChange={setCurrentPage} totalRecords={lowStockItems.length} itemsPerPage={itemsPerPage} />
           </div>
         )}
       </div>
 
-      {/* OVERLAY DIALOG MODALS */}
-
-      {/* A. Create Product Modal */}
+      {/* Admin Add Product Modal */}
       <Dialog isOpen={isAddingProduct} onClose={() => setIsAddingProduct(false)} title="Add Product to Catalog">
         <form onSubmit={handleAddProductSubmit} className="space-y-4 pt-2">
-          <Input
-            label="Product Name"
-            required
-            value={productForm.name}
-            onChange={e => setProductForm({ ...productForm, name: e.target.value })}
-            placeholder="Whey Protein Isolate (Strawberry)"
-          />
-
+          <Input label="Product Name" required value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} placeholder="Whey Protein Isolate" />
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="SKU Code"
-              required
-              value={productForm.sku}
-              onChange={e => setProductForm({ ...productForm, sku: e.target.value })}
-              placeholder="WPI-STRAW-2KG"
-            />
+            <Input label="SKU Code" required value={productForm.sku} onChange={e => setProductForm({ ...productForm, sku: e.target.value })} placeholder="WPI-STRAW-2KG" />
             <Select
               label="Product Category"
               options={[
@@ -683,78 +1057,28 @@ export default function InventoryPage() {
               onChange={e => setProductForm({ ...productForm, category: e.target.value as any })}
             />
           </div>
-
           <div className="grid grid-cols-3 gap-2">
             <Input label="Brand" value={productForm.brand} onChange={e => setProductForm({ ...productForm, brand: e.target.value })} />
             <Input label="Purchase Price ($)" type="number" value={productForm.purchasePrice} onChange={e => setProductForm({ ...productForm, purchasePrice: e.target.value })} />
             <Input label="Selling Price ($)" type="number" value={productForm.sellingPrice} onChange={e => setProductForm({ ...productForm, sellingPrice: e.target.value })} />
           </div>
-
           <div className="grid grid-cols-3 gap-2">
             <Input label="Current Stock" type="number" value={productForm.currentStock} onChange={e => setProductForm({ ...productForm, currentStock: e.target.value })} />
             <Input label="Min Stock Alert" type="number" value={productForm.minStock} onChange={e => setProductForm({ ...productForm, minStock: e.target.value })} />
             <Input label="Location" value={productForm.location} onChange={e => setProductForm({ ...productForm, location: e.target.value })} />
           </div>
-
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-            <Button variant="outline" size="sm" onClick={() => setIsAddingProduct(false)} className="text-xs">
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-              Add Product
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsAddingProduct(false)} className="text-xs">Cancel</Button>
+            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">Add Product</Button>
           </div>
         </form>
       </Dialog>
 
-      {/* B. Create Purchase Order Modal */}
-      <Dialog isOpen={isAddingPO} onClose={() => setIsAddingPO(false)} title="Draft Purchase Order">
-        <form onSubmit={handlePOSubmit} className="space-y-4 pt-2">
-          
-          <Select
-            label="Supplier Company"
-            required
-            options={suppliers.map(s => ({ value: s.company, label: s.company }))}
-            value={poForm.supplierName}
-            onChange={e => setPoForm({ ...poForm, supplierName: e.target.value })}
-          />
-
-          <Input
-            label="Items Description Summary"
-            required
-            value={poForm.itemsSummary}
-            onChange={e => setPoForm({ ...poForm, itemsSummary: e.target.value })}
-            placeholder="Whey Isolate Protein, preworkouts"
-          />
-
-          <div className="grid grid-cols-3 gap-2">
-            <Input label="Total Quantity" type="number" value={poForm.quantityOrdered} onChange={e => setPoForm({ ...poForm, quantityOrdered: e.target.value })} />
-            <Input label="Estimated Cost ($)" type="number" value={poForm.purchaseCost} onChange={e => setPoForm({ ...poForm, purchaseCost: e.target.value })} />
-            <Input label="Delivery Date" type="date" required value={poForm.expectedDelivery} onChange={e => setPoForm({ ...poForm, expectedDelivery: e.target.value })} className="scheme-dark" />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-            <Button variant="outline" size="sm" onClick={() => setIsAddingPO(false)} className="text-xs">
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-              Send Order
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
-      {/* C. Service Equipment Modal */}
+      {/* Service Equipment Modal */}
       {selectedEquipment && (
         <Dialog isOpen={isServicing} onClose={() => setIsServicing(false)} title={`Service Asset: ${selectedEquipment.name}`}>
           <form onSubmit={handleServiceSubmit} className="space-y-4 pt-2">
-            
-            <Input
-              label="Equipment Serial Number"
-              disabled
-              value={selectedEquipment.serialNumber}
-            />
-
+            <Input label="Equipment Serial Number" disabled value={selectedEquipment.serialNumber} />
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Service logs & notes</label>
               <textarea
@@ -765,19 +1089,13 @@ export default function InventoryPage() {
                 className="bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 transition-all font-semibold"
               />
             </div>
-
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
-              <Button variant="outline" size="sm" onClick={() => setIsServicing(false)} className="text-xs">
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
-                Record Service
-              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsServicing(false)} className="text-xs">Cancel</Button>
+              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">Record Service</Button>
             </div>
           </form>
         </Dialog>
       )}
-
     </PageLayout>
   );
 }

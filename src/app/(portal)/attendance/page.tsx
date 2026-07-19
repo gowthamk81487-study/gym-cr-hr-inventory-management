@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   UserCheck,
@@ -24,13 +24,6 @@ import {
   Camera,
   Nfc
 } from 'lucide-react';
-import {
-  mockAttendanceLogs,
-  mockPeakHoursTrend,
-  mockSixMonthAttendanceTrend,
-  AttendanceRecord
-} from '@/mock/attendance';
-import { mockClients } from '@/mock/clients';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -43,13 +36,30 @@ import { StatCard } from '@/components/common/StatCard';
 import PageLayout from '@/layouts/PageLayout';
 import Dropdown from '@/components/ui/Dropdown';
 import Pagination from '@/components/ui/Pagination';
+import { authService, clientService, coachService, notificationService } from '@/services';
+import { db } from '@/services/db';
+import { AttendanceRecord } from '@/mock/attendance';
+import { Client, Coach } from '@/types';
 
 export default function AttendancePage() {
   const { showToast } = useToast();
 
+  // Session state
+  const [role, setRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [clientProfile, setClientProfile] = useState<Client | null>(null);
+
   // Local State
-  const [logs, setLogs] = useState<AttendanceRecord[]>(mockAttendanceLogs);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'checkin' | 'logs' | 'calendar' | 'coach'>('dashboard');
+  const [logs, setLogs] = useState<AttendanceRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'checkin' | 'logs'>('dashboard');
+
+  // Client Intimation States
+  const [attendanceIntimated, setAttendanceIntimated] = useState(false);
+  const [intimationForm, setIntimationForm] = useState({
+    status: 'coming_today',
+    arrivalTime: '09:00',
+    remarks: ''
+  });
 
   // Search & Filter parameters
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +90,31 @@ export default function AttendancePage() {
     coachInteraction: 'Elena Rostova'
   });
 
+  const loadData = async () => {
+    try {
+      const cur = authService.getCurrentUser();
+      setCurrentUser(cur);
+      if (cur) {
+        setRole(cur.role);
+        if (cur.role === 'client') {
+          const cls = await clientService.getAll();
+          const p = cls.find(c => c.id === cur.entityId || c.email === cur.email);
+          if (p) setClientProfile(p);
+        }
+      }
+
+      // Fetch attendance logs from collection
+      const list = db.getCollection<AttendanceRecord>('gym_attendance');
+      setLogs(list);
+    } catch {
+      showToast('Error loading attendance logs.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   // 1. Dashboard summary numbers
   const dashboardStats = useMemo(() => {
     const today = '2026-07-18';
@@ -94,13 +129,18 @@ export default function AttendancePage() {
   // 2. Filtered Sub-catalogs
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
+      // Role scoping
+      if (role === 'client' && l.clientId !== clientProfile?.id) {
+        return false;
+      }
+
       const matchSearch =
         l.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.clientId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchStatus = filterStatus === 'all' || l.status === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [logs, searchQuery, filterStatus]);
+  }, [logs, searchQuery, filterStatus, role, clientProfile]);
 
   // Paginated slices
   const paginatedLogs = useMemo(() => {
@@ -116,7 +156,7 @@ export default function AttendancePage() {
   }, [logs]);
 
   // Form Submissions
-  const handleCheckInSubmit = (e: React.FormEvent) => {
+  const handleCheckInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Check for duplicate check-in
@@ -126,7 +166,8 @@ export default function AttendancePage() {
       return;
     }
 
-    const targetClient = mockClients.find(c => c.id === checkinForm.clientId);
+    const cls = await clientService.getAll();
+    const targetClient = cls.find(c => c.id === checkinForm.clientId);
     if (!targetClient) return;
 
     // Check membership validity alert
@@ -136,10 +177,7 @@ export default function AttendancePage() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsCheckingIn(false);
-
+    try {
       const newLog: AttendanceRecord = {
         id: `ATT-${Date.now().toString().slice(-4)}`,
         clientId: checkinForm.clientId,
@@ -150,23 +188,27 @@ export default function AttendancePage() {
         status: 'present',
         remarks: checkinForm.remarks,
         createdBy: 'Front Desk: Danny',
-        date: '2026-07-18'
+        date: new Date().toISOString().split('T')[0]
       };
 
-      setLogs([newLog, ...logs]);
+      const updated = [newLog, ...logs];
+      db.saveCollection('gym_attendance', updated);
+      setLogs(updated);
+      setIsCheckingIn(false);
       showToast(`${targetClient.name} checked in successfully!`, 'success');
-    }, 1200);
+    } catch {
+      showToast('Check-in failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCheckOutSubmit = (e: React.FormEvent) => {
+  const handleCheckOutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRecord) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsCheckingOut(false);
-
+    try {
       const updatedLogs = logs.map(l => {
         if (l.id === selectedRecord.id) {
           return {
@@ -179,19 +221,165 @@ export default function AttendancePage() {
         return l;
       });
 
+      db.saveCollection('gym_attendance', updatedLogs);
       setLogs(updatedLogs);
       setSelectedRecord(null);
+      setIsCheckingOut(false);
       showToast('Check-out completed. Workout session logged.', 'success');
-    }, 1200);
+    } catch {
+      showToast('Check-out failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Client Intimate Attendance
+  const handleIntimateAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientProfile) return;
+
+    setIsLoading(true);
+    try {
+      const coaches = await coachService.getAll();
+      const coach = coaches.find(co => co.id === clientProfile.coachId);
+      
+      const statusLabel =
+        intimationForm.status === 'coming_today' ? 'Coming Today' :
+        intimationForm.status === 'not_coming' ? 'Not Coming' : 'Expected Arrival';
+
+      // Send alert notification to the coach
+      await notificationService.create({
+        title: `Attendance Intimation: ${clientProfile.name}`,
+        message: `Client ${clientProfile.name} intimated status: ${statusLabel} (${intimationForm.arrivalTime}) remarks: ${intimationForm.remarks || 'None'}`,
+        type: 'info',
+        targetUserId: coach?.email || 'coach1001@thegymfitnesshub.in'
+      });
+
+      setAttendanceIntimated(true);
+      showToast('Arrival plans registered. Your coach has been notified!', 'success');
+    } catch {
+      showToast('Intimation failed.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const triggerExport = () => {
-    showToast('Exporting attendance registry (XLSX format)...', 'info');
+    showToast('Exporting attendance registry...', 'info');
     setTimeout(() => {
-      showToast('Downloads folder populated.', 'success');
+      showToast('Spreadsheet download compiled.', 'success');
     }, 1200);
   };
 
+  // CLIENT PORTAL ATTENDANCE VIEW
+  if (role === 'client') {
+    return (
+      <PageLayout
+        title="My Attendance Logs"
+        description="Notify your coach of today's training presence and track your daily check-in registry."
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-2">
+          {/* Intimation Form */}
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="border-slate-900">
+              <CardHeader title="Today's Arrival Intimation" description="Set your training status to notify your personal coach." />
+              <CardContent className="text-left pt-2">
+                {attendanceIntimated ? (
+                  <div className="text-center py-6 space-y-3">
+                    <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto" />
+                    <h4 className="text-xs font-bold text-slate-200 uppercase">Intimation Submitted</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Your coach was updated regarding today's expected arrival. Adjustments can be coordinated in your session.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleIntimateAttendance} className="space-y-4">
+                    <Select
+                      label="My Training Status"
+                      options={[
+                        { value: 'coming_today', label: 'Coming Today (In-bound)' },
+                        { value: 'expected_arrival', label: 'Expected Arrival (Specify time)' },
+                        { value: 'not_coming', label: 'Not Coming (Rest day)' }
+                      ]}
+                      value={intimationForm.status}
+                      onChange={e => setIntimationForm({ ...intimationForm, status: e.target.value })}
+                    />
+
+                    {intimationForm.status !== 'not_coming' && (
+                      <Input
+                        label="Expected Arrival Time"
+                        type="time"
+                        value={intimationForm.arrivalTime}
+                        onChange={e => setIntimationForm({ ...intimationForm, arrivalTime: e.target.value })}
+                        className="scheme-dark"
+                      />
+                    )}
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Access remarks / notes</label>
+                      <textarea
+                        rows={3}
+                        value={intimationForm.remarks}
+                        onChange={e => setIntimationForm({ ...intimationForm, remarks: e.target.value })}
+                        placeholder="Doing high intensity lower body compound squats today..."
+                        className="bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 transition-all font-semibold"
+                      />
+                    </div>
+
+                    <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="w-full text-xs">
+                      Submit Intimation
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Personal History Logs */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-slate-900">
+              <CardHeader title="My Check-in History Logs" description="Audit log of your entries and checkout durations." />
+              <CardContent className="p-0 text-left">
+                <div className="table-container text-[11px] font-semibold text-slate-400">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-950/60 uppercase tracking-wider text-[9px] border-b border-slate-900">
+                        <th className="p-3">Log Date</th>
+                        <th className="p-3">Check-in</th>
+                        <th className="p-3">Check-out</th>
+                        <th className="p-3">Duration</th>
+                        <th className="p-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-900">
+                      {filteredLogs.map(l => (
+                        <tr key={l.id} className="table-row-hover text-slate-300">
+                          <td className="p-3 font-mono text-slate-500">{l.date}</td>
+                          <td className="p-3 font-mono">{l.checkInTime}</td>
+                          <td className="p-3 font-mono">{l.checkOutTime || 'Active'}</td>
+                          <td className="p-3 font-mono text-blue-400">{l.durationMins ? `${l.durationMins} mins` : '—'}</td>
+                          <td className="p-3 text-slate-400 max-w-xs truncate">{l.remarks}</td>
+                        </tr>
+                      ))}
+                      {filteredLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-6 text-center text-slate-500">
+                            No attendance history logs recorded.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // STAFF ATTENDANCE DESK VIEW
   return (
     <PageLayout
       title="Member Attendance & Check-in"
@@ -252,7 +440,6 @@ export default function AttendancePage() {
         {/* Tab 1: Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Today's Check-ins" value={dashboardStats.checkinsCount} icon={UserCheck} change="Completed entries" />
               <StatCard title="Currently Inside" value={dashboardStats.insideCount} icon={Users} change="Active on gym floor" changeType="increase" />
@@ -260,7 +447,6 @@ export default function AttendancePage() {
               <StatCard title="Average Rate" value={`${dashboardStats.avgDailyRate}%`} icon={TrendingUp} change="Daily client checkin average" changeType="increase" />
             </div>
 
-            {/* Smart Hardware stubs banner */}
             <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex gap-3 items-start">
                 <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
@@ -290,48 +476,12 @@ export default function AttendancePage() {
                 </Button>
               </div>
             </div>
-
-            {/* Peak Hours Trend Info card */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="border-slate-900">
-                <CardHeader title="Today's Peak Hours (Simulated)" description="Visitor density splits across training slots" />
-                <CardContent>
-                  <div className="space-y-2.5 text-xs font-semibold text-slate-400">
-                    {mockPeakHoursTrend.map(pt => (
-                      <div key={pt.hour} className="flex items-center gap-3">
-                        <span className="w-12 font-mono text-[10px] text-slate-500">{pt.hour}</span>
-                        <div className="flex-1 bg-slate-950 rounded h-2 overflow-hidden border border-slate-900/60">
-                          <div className="bg-blue-500 h-full rounded" style={{ width: `${(pt.count / 45) * 100}%` }} />
-                        </div>
-                        <span className="w-8 text-right text-[10px] text-slate-300">{pt.count} checkins</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-900">
-                <CardHeader title="Six Month Attendance Average" description="Monthly visitor rate percentages" />
-                <CardContent>
-                  <div className="space-y-4 text-xs font-semibold text-slate-400 pt-2">
-                    {mockSixMonthAttendanceTrend.map(t => (
-                      <div key={t.month} className="flex justify-between items-center py-2.5 border-b border-slate-900/60">
-                        <span className="text-slate-300 font-bold">{t.month}</span>
-                        <span className="text-emerald-400 font-mono">{t.rate}% Rate</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         )}
 
         {/* Tab 2: Check-in Desk */}
         {activeTab === 'checkin' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start animate-fadeIn">
-            
-            {/* Occupants list */}
             <div className="md:col-span-2 space-y-4">
               <Card className="border-slate-900">
                 <CardHeader title="Members Currently Inside Gym" description="Active workout sessions awaiting check-out" />
@@ -339,7 +489,7 @@ export default function AttendancePage() {
                   {insideMembers.length === 0 ? (
                     <p className="text-center text-slate-500 text-xs py-4 font-semibold">No members checked in currently.</p>
                   ) : (
-                    <div className="divide-y divide-slate-900/60 font-semibold text-xs">
+                    <div className="divide-y divide-slate-900/60 font-semibold text-xs text-left">
                       {insideMembers.map(sub => (
                         <div key={sub.id} className="flex justify-between items-center py-3">
                           <div>
@@ -365,7 +515,6 @@ export default function AttendancePage() {
               </Card>
             </div>
 
-            {/* Quick Actions / Scanner mockup */}
             <div className="space-y-6">
               <Card className="border-slate-900">
                 <CardHeader title="Manual gate checkin helper" description="Search and checkin active memberships" />
@@ -376,14 +525,12 @@ export default function AttendancePage() {
                 </CardContent>
               </Card>
             </div>
-
           </div>
         )}
 
-        {/* Tab 3: Attendance Registry logs */}
+        {/* Tab 3: Attendance Registry */}
         {activeTab === 'logs' && (
           <div className="space-y-4 animate-fadeIn">
-            {/* Search */}
             <div className="relative w-full md:max-w-md">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
                 <Search className="h-4 w-4" />
@@ -442,18 +589,15 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {/* OVERLAY DIALOG MODALS */}
-
-      {/* 1. Manual Check-in Modal */}
+      {/* Manual Check-in Modal */}
       <Dialog isOpen={isCheckingIn} onClose={() => setIsCheckingIn(false)} title="Gate Check-in Desk">
-        <form onSubmit={handleCheckInSubmit} className="space-y-4 pt-2">
-          
-          <Select
-            label="Select Client Member"
+        <form onSubmit={handleCheckInSubmit} className="space-y-4 pt-2 text-left">
+          <Input
+            label="Client ID Number"
             required
-            options={mockClients.map(c => ({ value: c.id, label: `${c.name} (${c.id}) - Status: ${c.status}` }))}
             value={checkinForm.clientId}
             onChange={e => setCheckinForm({ ...checkinForm, clientId: e.target.value })}
+            placeholder="CL-001"
           />
 
           <Input
@@ -483,11 +627,10 @@ export default function AttendancePage() {
         </form>
       </Dialog>
 
-      {/* 2. Manual Check-out Modal */}
+      {/* Manual Check-out Modal */}
       {selectedRecord && (
         <Dialog isOpen={isCheckingOut} onClose={() => setIsCheckingOut(false)} title={`Gate Check-out Desk: ${selectedRecord.clientName}`}>
-          <form onSubmit={handleCheckOutSubmit} className="space-y-4 pt-2">
-            
+          <form onSubmit={handleCheckOutSubmit} className="space-y-4 pt-2 text-left">
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Check-out Time Stamp"
@@ -525,7 +668,7 @@ export default function AttendancePage() {
         </Dialog>
       )}
 
-      {/* 3. Barcode Scanner Simulation Modal */}
+      {/* Barcode Scanner Simulation Modal */}
       <Dialog isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} title="Simulate Barcode Scan">
         <div className="space-y-4 text-center py-4">
           <p className="text-xs text-slate-400 font-semibold leading-relaxed">
@@ -538,31 +681,20 @@ export default function AttendancePage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 setIsScannerOpen(false);
-                setCheckinForm({ clientId: 'CL-001', checkInTime: '10:00', remarks: 'QR Scanned checkin' });
+                const cls = await clientService.getAll();
+                const first = cls[0]?.id || 'CL-001';
+                setCheckinForm({ clientId: first, checkInTime: '10:00', remarks: 'QR Scanned checkin' });
                 setIsCheckingIn(true);
               }}
               className="text-xs py-1 border-slate-800"
             >
-              Simulate Sarah Jenkins QR Scan
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsScannerOpen(false);
-                setCheckinForm({ clientId: 'CL-005', checkInTime: '10:15', remarks: 'Barcode Scanned checkin' });
-                setIsCheckingIn(true);
-              }}
-              className="text-xs py-1 border-slate-800 text-rose-400"
-            >
-              Simulate Expired Plan QR Scan
+              Simulate Active QR Scan
             </Button>
           </div>
         </div>
       </Dialog>
-
     </PageLayout>
   );
 }

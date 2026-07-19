@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dumbbell, Lock, Mail } from 'lucide-react';
+import { Lock, Mail } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/components/common/Toast';
 import { authService } from '@/services';
+import Logo from '@/components/common/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,12 +44,12 @@ export default function LoginPage() {
         {/* Header Logo */}
         <div className="text-center space-y-2">
           <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center mx-auto shadow-lg shadow-blue-600/15">
-            <Dumbbell className="h-5 w-5 text-white" />
+            <Logo className="h-5 w-5" />
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-100 uppercase tracking-widest">Management Portal</h3>
             <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
-              The Gym Fitness Hub
+              The Gym Fitness Club
             </span>
           </div>
         </div>

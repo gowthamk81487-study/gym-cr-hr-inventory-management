@@ -24,7 +24,7 @@ export const ComingSoon: React.FC<ComingSoonProps> = ({
   const router = useRouter();
 
   return (
-    <PageLayout title={`${moduleName} Module`} description="Provolution Systems Operational Scaffold">
+    <PageLayout title={`${moduleName} Module`} description="The Gym Fitness Club Operational Scaffold">
       <div className="max-w-2xl mx-auto py-10">
         <Card isHoverable className="border-blue-500/10">
           <CardHeader

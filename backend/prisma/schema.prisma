@@ -1,0 +1,285 @@
+// Prisma Schema for The Gym Fitness Club Enterprise Management System
+// Database: PostgreSQL
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Authentication & Core Accounts
+model Account {
+  id                 String       @id @default(uuid())
+  email              String       @unique
+  passwordHash       String
+  roleId             String
+  role               Role         @relation(fields: [roleId], references: [id])
+  status             String       @default("active") // active, suspended
+  forcePasswordReset Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  
+  // Profile associations
+  clientProfile      Client?
+  managerProfile     Manager?
+  coachProfile       Coach?
+  auditLogs          AuditLog[]
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique // super_admin, manager, coach, client
+  permissions Permission[]
+  accounts    Account[]
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. manage_pricing, manage_staff, edit_diets
+  description String?
+  roles       Role[]
+}
+
+// Branches / Locations
+model Branch {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  address   String
+  status    String     @default("active") // active, inactive
+  staff     Manager[]
+  clients   Client[]
+  enquiries Enquiry[]
+}
+
+// Managers / Corporate Staff
+model Manager {
+  id        String   @id @default(uuid())
+  accountId String   @unique
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  hireDate  DateTime
+  salary    Float
+}
+
+// Coaches / Trainers
+model Coach {
+  id                 String        @id @default(uuid())
+  accountId          String        @unique
+  account            Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name               String
+  phone              String
+  specialization     String
+  coachRole          String        @default("personal_trainer") // head_coach, personal_trainer, nutritionist
+  status             String        @default("active") // active, on_leave, inactive
+  hireDate           DateTime
+  experienceYears    Int
+  bio                String?
+  maxCapacity        Int           @default(15)
+  clients            Client[]
+}
+
+// Clients / Members
+model Client {
+  id                 String        @id @default(uuid())
+  accountId          String        @unique
+  account            Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name               String
+  phone              String
+  gender             String
+  age                Int
+  dob                DateTime
+  bloodGroup         String
+  address            String
+  heightCm           Float
+  weightKg           Float
+  bmi                Float
+  fitnessGoal        String        // weight_loss, muscle_gain, endurance, general_health
+  medicalConditions  String?
+  allergies          String?
+  status             String        @default("pending") // pending, active, suspended
+  joinDate           DateTime      @default(now())
+  prCompletedDate    DateTime?
+  ptPackage          String?
+  coachId            String?
+  coach              Coach?        @relation(fields: [coachId], references: [id])
+  branchId           String
+  branch             Branch        @relation(fields: [branchId], references: [id])
+  
+  // Relations
+  membershipRecords  ClientMembership[]
+  attendanceLogs     Attendance[]
+  orders             Order[]
+  payments           Payment[]
+  workoutPlans       WorkoutPlan[]
+  dietPlans          DietPlan[]
+}
+
+// Memberships & Subscriptions
+model Membership {
+  id             String             @id @default(uuid())
+  name           String             @unique
+  type           String             // monthly, quarterly, annual, vip
+  price          Float
+  durationMonths Int
+  benefits       String[]
+  status         String             @default("active") // active, deprecated
+  clients        ClientMembership[]
+}
+
+model ClientMembership {
+  id             String     @id @default(uuid())
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  membershipId   String
+  membership     Membership @relation(fields: [membershipId], references: [id])
+  status         String     @default("active") // active, frozen, expired
+  startDate      DateTime
+  endDate        DateTime
+  paymentStatus  String     @default("unpaid") // paid, unpaid, overdue
+  freezeHistory  Json[]     // array of freeze records
+  renewalHistory Json[]     // array of renewal logs
+}
+
+// eCommerce Supplement Store & Inventory
+model Supplement {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  sku            String   @unique
+  brand          String
+  purchasePrice  Float
+  sellingPrice   Float
+  currentStock   Int
+  minStockLevel  Int
+  location       String
+  ingredients    String?
+  nutritionFacts String?
+  directions     String?
+  warnings       String?
+  status         String   @default("active") // active, archived
+  orderItems     OrderItem[]
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  totalAmount   Float
+  paymentMethod String
+  paymentStatus String      @default("pending")
+  status        String      @default("pending") // pending, shipped, delivered
+  shippingAddr  String
+  createdAt     DateTime    @default(now())
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id           String     @id @default(uuid())
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplementId String
+  supplement   Supplement @relation(fields: [supplementId], references: [id])
+  quantity     Int
+  price        Float
+}
+
+// Member Attendance
+model Attendance {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  checkIn     DateTime @default(now())
+  checkOut    DateTime?
+  status      String   @default("present") // present, absent, excused
+  intimation  String?  // expected checkin state
+}
+
+// Workouts & Diets
+model WorkoutPlan {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  level       String   // beginner, intermediate, advanced
+  exercises   Json[]   // Array of { name, sets, reps, notes }
+  startDate   DateTime
+  endDate     DateTime?
+}
+
+model DietPlan {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name          String
+  calorieTarget Int
+  macrosCarbs   Int
+  macrosProtein Int
+  macrosFat     Int
+  mealSchedule  Json[]   // Array of meals
+  startDate     DateTime
+}
+
+// Financial Ledgers
+model Payment {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod String   // cash, card, upi, qr_code
+  refCode       String?  // UPI/QR transaction code
+  slipImageUrl  String?  // QR verification screenshot proof
+  status        String   @default("pending") // pending, approved, rejected
+  createdDate   DateTime @default(now())
+  invoice       Invoice?
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  paymentId   String   @unique
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceNo   String   @unique
+  taxAmount   Float
+  totalAmount Float
+  issuedDate  DateTime @default(now())
+}
+
+// Leads & Enquiries
+model Enquiry {
+  id             String    @id @default(uuid())
+  name           String
+  email          String
+  phone          String
+  message        String
+  status         String    @default("new") // new, contacted, scheduled, converted
+  branchId       String
+  branch         Branch    @relation(fields: [branchId], references: [id])
+  createdDate    DateTime  @default(now())
+}
+
+// Notifications System
+model Notification {
+  id          String   @id @default(uuid())
+  title       String
+  message     String
+  type        String   @default("info") // info, success, warning, error
+  read        Boolean  @default(false)
+  targetRole  String?  // super_admin, manager, coach, client
+  targetEmail String?  // specific account recipient
+  createdAt   DateTime @default(now())
+}
+
+// Audit Logs
+model AuditLog {
+  id         String   @id @default(uuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  action     String   // e.g. SUSPEND_USER, UPDATE_PRICING
+  ipAddress  String?
+  details    String?
+  timestamp  DateTime @default(now())
+}

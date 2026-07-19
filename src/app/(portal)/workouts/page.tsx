@@ -304,26 +304,6 @@ export default function WorkoutsPage() {
               <StatCard title="Pending Reviews" value={dashboardStats.pendingReviews} icon={Clock} change="Scheduled this week" />
             </div>
 
-            {/* AI Generator recommendations banner */}
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex gap-3 items-start">
-                <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Gemini Workout Generator Blueprint</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed font-semibold mt-1">
-                    AI analyzes biometric goal files to generate calibrated sets/reps ratios. Connect a smartwatch to import calorie logs directly.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => showToast('Smart generators connected.', 'info')}
-                className="text-[10px] py-1 border-slate-800 text-blue-400 hover:text-blue-300 font-bold shrink-0 cursor-pointer"
-              >
-                Enable Integrations
-              </Button>
-            </div>
 
             {/* Recent updates feed */}
             <Card className="border-slate-900">

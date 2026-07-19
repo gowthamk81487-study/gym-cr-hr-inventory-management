@@ -184,9 +184,9 @@ export default function PricingPage() {
             <Select
               label="Preferred Branch"
               options={[
-                { value: 'downtown', label: 'Provolution Downtown Club' },
-                { value: 'heights', label: 'Provolution Heights Club' },
-                { value: 'marina', label: 'Provolution Marina Club' }
+                { value: 'downtown', label: 'The Gym Fitness Club Downtown Club' },
+                { value: 'heights', label: 'The Gym Fitness Club Heights Club' },
+                { value: 'marina', label: 'The Gym Fitness Club Marina Club' }
               ]}
               value={formData.branch}
               onChange={(e) => setFormData({ ...formData, branch: e.target.value })}

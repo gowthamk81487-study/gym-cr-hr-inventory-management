@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils';
 import { authService } from '@/services';
+import Logo from '@/components/common/Logo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -210,13 +211,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Header Branding */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-900 bg-slate-950/50">
           <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Dumbbell className="h-4.5 w-4.5 text-white" />
-            </div>
+            <Logo className="h-8 w-8" />
             <div>
-              <h1 className="text-sm font-bold text-white leading-none">The Gym</h1>
-              <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
-                Fitness Hub
+              <h1 className="text-xs font-bold text-white leading-none">The Gym</h1>
+              <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
+                Fitness Club
               </span>
             </div>
           </Link>

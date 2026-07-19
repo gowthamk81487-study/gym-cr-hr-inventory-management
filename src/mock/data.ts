@@ -45,7 +45,7 @@ export const mockTrainers: Coach[] = [
   {
     id: 'coach-1',
     name: 'Coach Marcus Sterling',
-    email: 'marcus@provolution.com',
+    email: 'marcus@thegymfitnesshub.in',
     phone: '+1 (555) 019-1111',
     specialization: 'Powerlifting & Strength',
     role: 'head_coach',
@@ -59,7 +59,7 @@ export const mockTrainers: Coach[] = [
   {
     id: 'coach-2',
     name: 'Coach Elena Rostova',
-    email: 'elena@provolution.com',
+    email: 'elena@thegymfitnesshub.in',
     phone: '+1 (555) 019-2222',
     specialization: 'HIIT & Functional Fitness',
     role: 'personal_trainer',
@@ -73,7 +73,7 @@ export const mockTrainers: Coach[] = [
   {
     id: 'coach-3',
     name: 'Coach Damien Vance',
-    email: 'damien@provolution.com',
+    email: 'damien@thegymfitnesshub.in',
     phone: '+1 (555) 019-3333',
     specialization: 'Body Recomposition & Nutrition',
     role: 'nutritionist',
@@ -176,7 +176,7 @@ export const mockActivities = [
 export const mockAlerts = {
   inventory: [
     { name: 'Whey Protein Hydrolyzed', qty: 2, threshold: 10, category: 'supplement' },
-    { name: 'Provolution Core Tee (Medium)', qty: 4, threshold: 15, category: 'apparel' }
+    { name: 'The Gym Fitness Club Core Tee (Medium)', qty: 4, threshold: 15, category: 'apparel' }
   ],
   renewals: [
     { name: 'Marcus Sterling', plan: 'VIP Yearly', expiryDate: '2026-07-28' },

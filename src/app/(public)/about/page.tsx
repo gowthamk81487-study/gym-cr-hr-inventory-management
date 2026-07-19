@@ -10,7 +10,7 @@ import { mockTrainers, mockFacilities } from '@/mock/data';
 export default function AboutPage() {
   return (
     <PageLayout
-      title="About Provolution Club"
+      title="About The Gym Fitness Club"
       description="Unlocking human capability through calibrated physical operations and data science."
     >
       <div className="space-y-16 max-w-5xl mx-auto py-6">
@@ -21,7 +21,7 @@ export default function AboutPage() {
               Our Physical Philosophy
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Provolution Technologies established the Provolution Club prototype to challenge status-quo gym operations. Traditional clubs separate training routines from metrics tracking; we merge them. 
+              The Gym Fitness Club established the The Gym Fitness Club prototype to challenge status-quo gym operations. Traditional clubs separate training routines from metrics tracking; we merge them. 
             </p>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
               We provide clean elite facilities matched with structured, Promise-supported HR systems, ensuring coaches are paid transparently and clients stay connected with their dedicated trainers.

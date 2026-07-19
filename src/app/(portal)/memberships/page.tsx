@@ -88,7 +88,7 @@ export default function MembershipsPage() {
     ptSessionsCount: '0',
     dietConsultsCount: '0',
     workoutConsultsCount: '1',
-    accessTiming: '24_7' as const,
+    accessTiming: '24_7' as '24_7' | 'off_peak' | 'daytime' | 'weekends_only',
     notes: ''
   });
 
@@ -201,6 +201,50 @@ export default function MembershipsPage() {
       });
       showToast('New membership plan created!', 'success');
     }, 1200);
+  };
+
+  const handleEditPlanSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlan || !planForm.name || !planForm.price) {
+      showToast('Please fill out all required fields.', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsEditingPlan(false);
+
+      const updated = plans.map(p => {
+        if (p.id === selectedPlan.id) {
+          return {
+            ...p,
+            name: planForm.name,
+            description: planForm.description,
+            durationMonths: parseInt(planForm.durationMonths, 10),
+            price: parseFloat(planForm.price),
+            discount: parseFloat(planForm.discount),
+            gstPercent: parseFloat(planForm.gstPercent),
+            enrollmentFee: parseFloat(planForm.enrollmentFee),
+            renewalFee: parseFloat(planForm.renewalFee || planForm.price),
+            freezeAllowed: planForm.freezeAllowed === 'true',
+            maxFreezeDays: parseInt(planForm.maxFreezeDays, 10),
+            transferAllowed: planForm.transferAllowed === 'true',
+            guestPassCount: parseInt(planForm.guestPassCount, 10),
+            ptSessionsCount: parseInt(planForm.ptSessionsCount, 10),
+            dietConsultsCount: parseInt(planForm.dietConsultsCount, 10),
+            workoutConsultsCount: parseInt(planForm.workoutConsultsCount, 10),
+            accessTiming: planForm.accessTiming,
+            notes: planForm.notes
+          };
+        }
+        return p;
+      });
+
+      setPlans(updated);
+      setSelectedPlan(null);
+      showToast('Membership plan updated successfully!', 'success');
+    }, 1000);
   };
 
   const handleRenewSubmit = (e: React.FormEvent) => {
@@ -399,26 +443,6 @@ export default function MembershipsPage() {
               <StatCard title="Estimated Revenue" value={`$${dashboardStats.revenue.toLocaleString()}`} icon={DollarSign} change="Stripe MRR estimate" changeType="increase" />
             </div>
 
-            {/* AI Renewal Predictions suggestion stubs */}
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex gap-3 items-start">
-                <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Gemini Churn Prediction Widget</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed font-semibold mt-1">
-                    Found 5 expired accounts that have not checked in for 15+ days. Suggest launching a corporate reactivation discount code via UPI/SMS notifications.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => showToast('Reactivation campaign triggered!', 'success')}
-                className="text-[10px] py-1 border-slate-800 text-blue-400 hover:text-blue-300 font-bold shrink-0 cursor-pointer"
-              >
-                Trigger Campaigns
-              </Button>
-            </div>
 
             {/* Recent subscription actions feed */}
             <Card className="border-slate-900">
@@ -475,6 +499,36 @@ export default function MembershipsPage() {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2 border-t border-slate-950">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPlan(plan);
+                        setPlanForm({
+                          name: plan.name,
+                          description: plan.description,
+                          durationMonths: String(plan.durationMonths),
+                          price: String(plan.price),
+                          discount: String(plan.discount || 0),
+                          gstPercent: String(plan.gstPercent || 18),
+                          enrollmentFee: String(plan.enrollmentFee || 0),
+                          renewalFee: String(plan.renewalFee || plan.price),
+                          freezeAllowed: String(plan.freezeAllowed),
+                          maxFreezeDays: String(plan.maxFreezeDays || 30),
+                          transferAllowed: String(plan.transferAllowed || false),
+                          guestPassCount: String(plan.guestPassCount || 0),
+                          ptSessionsCount: String(plan.ptSessionsCount || 0),
+                          dietConsultsCount: String(plan.dietConsultsCount || 0),
+                          workoutConsultsCount: String(plan.workoutConsultsCount || 0),
+                          accessTiming: plan.accessTiming,
+                          notes: plan.notes || ''
+                        });
+                        setIsEditingPlan(true);
+                      }}
+                      className="flex-1 text-[10px] py-1 border-slate-800"
+                    >
+                      <Edit2 className="h-3 w-3" /> Edit
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => duplicatePlan(plan)} className="flex-1 text-[10px] py-1 border-slate-800">
                       <Copy className="h-3 w-3" /> Duplicate
                     </Button>
@@ -875,6 +929,103 @@ export default function MembershipsPage() {
               </Button>
               <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
                 Confirm Upgrade
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {/* 5. Edit Membership Plan Modal */}
+      {selectedPlan && (
+        <Dialog isOpen={isEditingPlan} onClose={() => { setIsEditingPlan(false); setSelectedPlan(null); }} title="Modify Membership Plan">
+          <form onSubmit={handleEditPlanSubmit} className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Plan Name"
+                required
+                value={planForm.name}
+                onChange={e => setPlanForm({ ...planForm, name: e.target.value })}
+              />
+              <Input
+                label="Monthly Price ($)"
+                required
+                type="number"
+                value={planForm.price}
+                onChange={e => setPlanForm({ ...planForm, price: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Select
+                label="Duration (Months)"
+                options={[
+                  { value: '1', label: '1 Month' },
+                  { value: '3', label: '3 Months' },
+                  { value: '6', label: '6 Months' },
+                  { value: '12', label: '12 Months' }
+                ]}
+                value={planForm.durationMonths}
+                onChange={e => setPlanForm({ ...planForm, durationMonths: e.target.value })}
+              />
+              <Input
+                label="Discount ($)"
+                type="number"
+                value={planForm.discount}
+                onChange={e => setPlanForm({ ...planForm, discount: e.target.value })}
+              />
+              <Select
+                label="Access Timing"
+                options={[
+                  { value: '24_7', label: '24/7 Access' },
+                  { value: 'off_peak', label: 'Off-Peak hours' },
+                  { value: 'daytime', label: 'Daytime only' },
+                  { value: 'weekends_only', label: 'Weekends only' }
+                ]}
+                value={planForm.accessTiming}
+                onChange={e => setPlanForm({ ...planForm, accessTiming: e.target.value as any })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                label="Freeze Allowed"
+                options={[
+                  { value: 'true', label: 'Allow Freezing' },
+                  { value: 'false', label: 'Block Freezing' }
+                ]}
+                value={planForm.freezeAllowed}
+                onChange={e => setPlanForm({ ...planForm, freezeAllowed: e.target.value })}
+              />
+              <Input
+                label="Max Freeze Days"
+                type="number"
+                value={planForm.maxFreezeDays}
+                onChange={e => setPlanForm({ ...planForm, maxFreezeDays: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              <Input label="Guest Passes" type="number" value={planForm.guestPassCount} onChange={e => setPlanForm({ ...planForm, guestPassCount: e.target.value })} />
+              <Input label="PT Sessions" type="number" value={planForm.ptSessionsCount} onChange={e => setPlanForm({ ...planForm, ptSessionsCount: e.target.value })} />
+              <Input label="Diet Consults" type="number" value={planForm.dietConsultsCount} onChange={e => setPlanForm({ ...planForm, dietConsultsCount: e.target.value })} />
+              <Input label="Workout Plan" type="number" value={planForm.workoutConsultsCount} onChange={e => setPlanForm({ ...planForm, workoutConsultsCount: e.target.value })} />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Plan Description</label>
+              <textarea
+                rows={2}
+                value={planForm.description}
+                onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
+                className="bg-slate-950/60 border border-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500/60 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 transition-all font-semibold"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => { setIsEditingPlan(false); setSelectedPlan(null); }} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">
+                Save Changes
               </Button>
             </div>
           </form>

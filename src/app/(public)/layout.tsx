@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Dumbbell, Menu, X, Globe, PhoneCall } from 'lucide-react';
+import { Menu, X, Globe, PhoneCall } from 'lucide-react';
 import { cn } from '@/utils';
+import Logo from '@/components/common/Logo';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,15 +27,13 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="h-9 w-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Dumbbell className="h-5 w-5 text-white" />
-            </div>
+            <Logo className="h-9 w-9" />
             <div>
               <span className="text-sm font-black text-white tracking-wide uppercase leading-none block">
-                Provolution
+                The Gym Fitness Club
               </span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
-                Technologies
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none block mt-0.5">
+                Management System
               </span>
             </div>
           </Link>
@@ -115,9 +114,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           {/* Brand Info */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2">
-              <Dumbbell className="h-5 w-5 text-blue-500" />
+              <Logo className="h-5 w-5" />
               <span className="text-sm font-black text-white uppercase tracking-wider">
-                Provolution Gym
+                The Gym Fitness Club
               </span>
             </Link>
             <p className="text-xs text-slate-500 leading-relaxed max-w-[240px]">
@@ -150,7 +149,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Inquiries</h4>
             <div className="space-y-2 text-xs text-slate-500">
-              <p>100 Provolution Blvd, Suite 400</p>
+              <p>100 The Gym Fitness Club Blvd, Suite 400</p>
               <p>San Francisco, CA 94107</p>
               <div className="flex items-center gap-2 text-slate-400 pt-1">
                 <PhoneCall className="h-3.5 w-3.5 text-blue-500" />
@@ -163,7 +162,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         {/* Legal Row */}
         <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-slate-900/60 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-600 gap-4">
           <p>
-            © {new Date().getFullYear()} Provolution Technologies. All rights reserved. Designed for Gym Operations.
+            © {new Date().getFullYear()} The Gym Fitness Club. All rights reserved. Designed for Gym Operations.
           </p>
           <div className="flex gap-6">
             <span className="hover:text-slate-400 cursor-pointer">Privacy Policy</span>

@@ -3,7 +3,7 @@ import './globals.css';
 import { ToastProvider } from '../components/common/Toast';
 
 export const metadata: Metadata = {
-  title: 'Gym HR, Memberships & Inventory System - Provolution Technologies',
+  title: 'Gym HR, Memberships & Inventory System - The Gym Fitness Club',
   description: 'Interactive MVP Portal for Client Continuity, Coach Scheduling, Payments Ledgers, and Health Club Logistics Management.',
   icons: {
     icon: '/favicon.ico',

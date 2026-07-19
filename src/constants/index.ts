@@ -4,16 +4,16 @@
 
 export const APP_METADATA = {
   name: 'Gym HR Portal',
-  startup: 'Provolution Technologies',
+  startup: 'The Gym Fitness Club',
   version: '1.0.0-MVP',
-  supportEmail: 'support@provolution.com',
+  supportEmail: 'support@thegymfitnesshub.in',
   inquiryPhone: '+1 (800) 555-PROV'
 };
 
 export const BRANCH_LOCATIONS = [
-  { id: 'downtown', name: 'Provolution Downtown Club (HQ)', address: '100 Provolution Blvd, SF, CA' },
-  { id: 'heights', name: 'Provolution Heights Club', address: '400 heights Ave, SF, CA' },
-  { id: 'marina', name: 'Provolution Marina Club', address: '750 Marina Blvd, SF, CA' }
+  { id: 'downtown', name: 'The Gym Fitness Club Downtown Club (HQ)', address: '100 The Gym Fitness Club Blvd, SF, CA' },
+  { id: 'heights', name: 'The Gym Fitness Club Heights Club', address: '400 heights Ave, SF, CA' },
+  { id: 'marina', name: 'The Gym Fitness Club Marina Club', address: '750 Marina Blvd, SF, CA' }
 ];
 
 export const NAVIGATION_GROUPS = {

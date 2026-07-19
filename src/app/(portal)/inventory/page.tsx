@@ -87,6 +87,8 @@ export default function InventoryPage() {
 
   // Dialog triggers
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isEditingProduct, setIsEditingProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<GymProduct | null>(null);
   const [isAddingPO, setIsAddingPO] = useState(false);
   const [isServicing, setIsServicing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -95,7 +97,7 @@ export default function InventoryPage() {
   const [productForm, setProductForm] = useState({
     name: '',
     sku: '',
-    category: 'supplements' as const,
+    category: 'supplements' as 'supplements' | 'merchandise' | 'cafe' | 'locker_room',
     brand: '',
     supplierName: 'NutriFit Wholesale Ltd',
     purchasePrice: '',
@@ -104,7 +106,11 @@ export default function InventoryPage() {
     minStock: '10',
     maxStock: '100',
     location: 'Aisle A',
-    description: ''
+    description: '',
+    ingredients: '',
+    nutritionFacts: '',
+    directions: '',
+    warnings: ''
   });
 
   const [poForm, setPoForm] = useState({
@@ -234,7 +240,11 @@ export default function InventoryPage() {
         gstPercent: 18,
         location: productForm.location,
         status: 'active',
-        description: productForm.description
+        description: productForm.description,
+        ingredients: productForm.ingredients,
+        nutritionFacts: productForm.nutritionFacts,
+        directions: productForm.directions,
+        warnings: productForm.warnings
       };
 
       const updated = [newPrd, ...products];
@@ -254,11 +264,82 @@ export default function InventoryPage() {
         minStock: '10',
         maxStock: '100',
         location: 'Aisle A',
-        description: ''
+        description: '',
+        ingredients: '',
+        nutritionFacts: '',
+        directions: '',
+        warnings: ''
       });
       showToast('Product created successfully!', 'success');
+      loadData();
     } catch {
       showToast('Error registering product.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct || !productForm.name || !productForm.sku) {
+      showToast('Please fill out all required fields.', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const updatedPrds = products.map(p => {
+        if (p.id === editingProduct.id) {
+          return {
+            ...p,
+            name: productForm.name,
+            sku: productForm.sku,
+            category: productForm.category,
+            brand: productForm.brand,
+            supplierName: productForm.supplierName,
+            purchasePrice: parseFloat(productForm.purchasePrice || '10'),
+            sellingPrice: parseFloat(productForm.sellingPrice || '18'),
+            currentStock: parseInt(productForm.currentStock, 10),
+            minStock: parseInt(productForm.minStock, 10),
+            maxStock: parseInt(productForm.maxStock, 10),
+            location: productForm.location,
+            description: productForm.description,
+            ingredients: productForm.ingredients,
+            nutritionFacts: productForm.nutritionFacts,
+            directions: productForm.directions,
+            warnings: productForm.warnings
+          };
+        }
+        return p;
+      });
+
+      await inventoryService.saveProducts(updatedPrds);
+      setProducts(updatedPrds);
+
+      setIsEditingProduct(false);
+      setEditingProduct(null);
+      setProductForm({
+        name: '',
+        sku: '',
+        category: 'supplements',
+        brand: '',
+        supplierName: 'NutriFit Wholesale Ltd',
+        purchasePrice: '',
+        sellingPrice: '',
+        currentStock: '30',
+        minStock: '10',
+        maxStock: '100',
+        location: 'Aisle A',
+        description: '',
+        ingredients: '',
+        nutritionFacts: '',
+        directions: '',
+        warnings: ''
+      });
+      showToast('Product updated successfully!', 'success');
+      loadData();
+    } catch {
+      showToast('Failed to update product.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -568,32 +649,137 @@ export default function InventoryPage() {
         {/* View Details Shop Modal */}
         {selectedShopPrd && (
           <Dialog isOpen={!!selectedShopPrd} onClose={() => setSelectedShopPrd(null)} title={selectedShopPrd.name} size="md">
-            <div className="space-y-4 pt-2 text-left">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 pt-2 text-left max-h-[80vh] overflow-y-auto pr-1">
+              
+              {/* Product Gallery & Core Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-slate-500 uppercase text-[9px]">Brand</span>
-                  <p className="font-bold text-slate-200">{selectedShopPrd.brand}</p>
+                  <div className="h-44 bg-slate-950/60 rounded-xl border border-slate-900 flex items-center justify-center text-slate-600 overflow-hidden relative">
+                    <img
+                      src={
+                        selectedShopPrd.category === 'supplements'
+                          ? 'https://images.unsplash.com/photo-1579758629938-03607ccdbaba?auto=format&fit=crop&q=80&w=300&h=300'
+                          : 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=300&h=300'
+                      }
+                      alt={selectedShopPrd.name}
+                      className="object-cover h-full w-full opacity-80"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <div className="h-10 w-10 border border-slate-800 rounded bg-slate-950/40 opacity-70 cursor-pointer overflow-hidden">
+                      <img src="https://images.unsplash.com/photo-1579758629938-03607ccdbaba?auto=format&fit=crop&q=80&w=80&h=80" className="object-cover h-full w-full" />
+                    </div>
+                    <div className="h-10 w-10 border border-slate-800 rounded bg-slate-950/40 opacity-70 cursor-pointer overflow-hidden">
+                      <img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=80&h=80" className="object-cover h-full w-full" />
+                    </div>
+                  </div>
                 </div>
+
+                <div className="space-y-3 font-semibold text-xs text-slate-300">
+                  <div>
+                    <span className="text-slate-500 uppercase text-[9px] block">Brand & Category</span>
+                    <span className="text-slate-200 font-bold">{selectedShopPrd.brand} • <Badge variant="slate">{selectedShopPrd.category}</Badge></span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 uppercase text-[9px] block">SKU Code</span>
+                    <span className="font-mono text-slate-400">{selectedShopPrd.sku}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 uppercase text-[9px] block">Stock Status</span>
+                    <span>
+                      {selectedShopPrd.currentStock > 0 ? (
+                        <Badge variant="emerald">{selectedShopPrd.currentStock} Units Available</Badge>
+                      ) : (
+                        <Badge variant="rose">Out of Stock</Badge>
+                      )}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-900 pt-2 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 uppercase text-[9px]">M.R.P.</span>
+                      <span className="line-through text-slate-500 font-mono">${Math.round(selectedShopPrd.sellingPrice * 1.25)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 uppercase text-[9px]">Club Deal Price</span>
+                      <span className="text-emerald-400 font-bold font-mono text-sm">${selectedShopPrd.sellingPrice}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-blue-400 font-bold">
+                      <span>You Save:</span>
+                      <span>20% Off Deal!</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Specifications */}
+              <div className="space-y-3 border-t border-slate-900 pt-3 text-xs">
+                <div>
+                  <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[9px] mb-1">Product Overview</h5>
+                  <p className="text-slate-400 leading-relaxed font-semibold">
+                    {selectedShopPrd.description || 'Premium physical conditioning asset sourced from authorized manufacturers.'}
+                  </p>
+                </div>
+
+                {selectedShopPrd.ingredients && (
+                  <div>
+                    <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[9px] mb-1">Ingredients</h5>
+                    <p className="text-slate-400 leading-relaxed font-mono text-[10.5px]">
+                      {selectedShopPrd.ingredients}
+                    </p>
+                  </div>
+                )}
+
+                {selectedShopPrd.nutritionFacts && (
+                  <div>
+                    <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[9px] mb-1">Nutrition Supplement Facts</h5>
+                    <p className="text-slate-400 leading-relaxed font-semibold p-2.5 bg-slate-950/40 border border-slate-900 rounded-lg">
+                      {selectedShopPrd.nutritionFacts}
+                    </p>
+                  </div>
+                )}
+
+                {selectedShopPrd.directions && (
+                  <div>
+                    <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[9px] mb-1">Recommended Usage & Directions</h5>
+                    <p className="text-slate-400 leading-relaxed font-semibold">
+                      {selectedShopPrd.directions}
+                    </p>
+                  </div>
+                )}
+
+                {selectedShopPrd.warnings && (
+                  <div className="bg-rose-500/5 border border-rose-500/10 p-2.5 rounded-lg text-[10.5px]">
+                    <h5 className="font-bold text-rose-400 uppercase tracking-wider text-[9px] mb-0.5">Warnings & Allergen Statements</h5>
+                    <p className="text-slate-400 leading-relaxed font-semibold">
+                      {selectedShopPrd.warnings}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Verified Product Reviews */}
+              <div className="border-t border-slate-900 pt-3 space-y-2 text-xs">
+                <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[9px]">Verified Member Reviews</h5>
                 <div className="space-y-2">
-                  <span className="text-slate-500 uppercase text-[9px]">Selling Price</span>
-                  <p className="font-bold text-emerald-400">${selectedShopPrd.sellingPrice}</p>
+                  {[
+                    { name: 'Gowtham Raj', rating: 5, comment: 'Exceptional blend, mixes perfectly without clumping. High protein yield!', date: '3 days ago' },
+                    { name: 'Sarah Jenkins', rating: 4, comment: 'Great taste, chocolate is rich. Helps a lot with recovery cycles.', date: '1 week ago' }
+                  ].map((rev, i) => (
+                    <div key={i} className="p-2 bg-slate-950/30 border border-slate-900/60 rounded-lg space-y-1">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-slate-300">{rev.name}</span>
+                        <span className="text-slate-500">{rev.date}</span>
+                      </div>
+                      <div className="flex text-amber-400 text-[10px]">
+                        {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
+                      </div>
+                      <p className="text-slate-400 text-[10.5px] font-semibold">{rev.comment}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <span className="text-slate-500 uppercase text-[9px] block">Product Description</span>
-                <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-                  {selectedShopPrd.description || 'Club supply certified fitness product.'}
-                </p>
-              </div>
-
-              <div className="space-y-2 border-t border-slate-900 pt-3 text-xs">
-                <h5 className="font-bold text-slate-300 uppercase tracking-wider text-[9px] mb-1">Nutrition & Directions</h5>
-                <p className="text-slate-400 leading-relaxed">
-                  Consume 1 scoop with 250ml water post training. Store in a dry cool place. Keep out of reach of children.
-                </p>
-              </div>
-
+              {/* Actions */}
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
                 <Button variant="outline" size="sm" onClick={() => setSelectedShopPrd(null)} className="text-xs">
                   Close details
@@ -605,6 +791,7 @@ export default function InventoryPage() {
                     handleAddToCart(selectedShopPrd);
                     setSelectedShopPrd(null);
                   }}
+                  disabled={selectedShopPrd.currentStock <= 0}
                   className="text-xs px-4!"
                 >
                   Add to Cart
@@ -767,25 +954,6 @@ export default function InventoryPage() {
               <StatCard title="Inventory Value" value={`$${Math.round(dashboardStats.totalVal).toLocaleString()}`} icon={DollarSign} change="Purchase cost aggregate" changeType="increase" />
             </div>
 
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex gap-3 items-start">
-                <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Predictive Maintenance & Supply Forecasting</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed font-semibold mt-1">
-                    AI analyzes equipment cycle wear to trigger maintenance alerts before breakdown. Auto-suggests restock POs based on monthly sales checkouts.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => showToast('Restock predictions synced!', 'success')}
-                className="text-[10px] py-1 border-slate-800 text-blue-400 hover:text-blue-300 font-bold shrink-0 cursor-pointer"
-              >
-                Forecast Restock
-              </Button>
-            </div>
           </div>
         )}
 
@@ -858,6 +1026,32 @@ export default function InventoryPage() {
                             </Button>
                           }
                           items={[
+                            {
+                              label: 'Edit Product',
+                              icon: Eye,
+                              onClick: () => {
+                                setEditingProduct(prd);
+                                setProductForm({
+                                  name: prd.name,
+                                  sku: prd.sku,
+                                  category: prd.category,
+                                  brand: prd.brand,
+                                  supplierName: prd.supplierName,
+                                  purchasePrice: String(prd.purchasePrice),
+                                  sellingPrice: String(prd.sellingPrice),
+                                  currentStock: String(prd.currentStock),
+                                  minStock: String(prd.minStock),
+                                  maxStock: String(prd.maxStock || 100),
+                                  location: prd.location,
+                                  description: prd.description,
+                                  ingredients: prd.ingredients || '',
+                                  nutritionFacts: prd.nutritionFacts || '',
+                                  directions: prd.directions || '',
+                                  warnings: prd.warnings || ''
+                                });
+                                setIsEditingProduct(true);
+                              }
+                            },
                             {
                               label: 'Duplicate Product',
                               icon: Copy,
@@ -1041,7 +1235,7 @@ export default function InventoryPage() {
 
       {/* Admin Add Product Modal */}
       <Dialog isOpen={isAddingProduct} onClose={() => setIsAddingProduct(false)} title="Add Product to Catalog">
-        <form onSubmit={handleAddProductSubmit} className="space-y-4 pt-2">
+        <form onSubmit={handleAddProductSubmit} className="space-y-4 pt-2 max-h-[75vh] overflow-y-auto pr-1">
           <Input label="Product Name" required value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} placeholder="Whey Protein Isolate" />
           <div className="grid grid-cols-2 gap-4">
             <Input label="SKU Code" required value={productForm.sku} onChange={e => setProductForm({ ...productForm, sku: e.target.value })} placeholder="WPI-STRAW-2KG" />
@@ -1067,9 +1261,62 @@ export default function InventoryPage() {
             <Input label="Min Stock Alert" type="number" value={productForm.minStock} onChange={e => setProductForm({ ...productForm, minStock: e.target.value })} />
             <Input label="Location" value={productForm.location} onChange={e => setProductForm({ ...productForm, location: e.target.value })} />
           </div>
+          <Input label="Description" value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} placeholder="High quality whey isolate" />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Ingredients" value={productForm.ingredients} onChange={e => setProductForm({ ...productForm, ingredients: e.target.value })} placeholder="Whey protein, cocoa, lecithin" />
+            <Input label="Nutrition Facts" value={productForm.nutritionFacts} onChange={e => setProductForm({ ...productForm, nutritionFacts: e.target.value })} placeholder="Protein: 25g, Carbs: 2g, Fat: 1g" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Directions" value={productForm.directions} onChange={e => setProductForm({ ...productForm, directions: e.target.value })} placeholder="Take 1 scoop with 250ml water" />
+            <Input label="Warnings" value={productForm.warnings} onChange={e => setProductForm({ ...productForm, warnings: e.target.value })} placeholder="Not suitable for lactose intolerant" />
+          </div>
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
             <Button variant="outline" size="sm" onClick={() => setIsAddingProduct(false)} className="text-xs">Cancel</Button>
             <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">Add Product</Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Admin Edit Product Modal */}
+      <Dialog isOpen={isEditingProduct} onClose={() => { setIsEditingProduct(false); setEditingProduct(null); }} title="Edit Product details">
+        <form onSubmit={handleEditProductSubmit} className="space-y-4 pt-2 max-h-[75vh] overflow-y-auto pr-1">
+          <Input label="Product Name" required value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="SKU Code" required value={productForm.sku} onChange={e => setProductForm({ ...productForm, sku: e.target.value })} />
+            <Select
+              label="Product Category"
+              options={[
+                { value: 'supplements', label: 'Supplements' },
+                { value: 'merchandise', label: 'Merchandise' },
+                { value: 'cafe', label: 'Cafe Drinks' },
+                { value: 'locker_room', label: 'Locker Room' }
+              ]}
+              value={productForm.category}
+              onChange={e => setProductForm({ ...productForm, category: e.target.value as any })}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Input label="Brand" value={productForm.brand} onChange={e => setProductForm({ ...productForm, brand: e.target.value })} />
+            <Input label="Purchase Price ($)" type="number" value={productForm.purchasePrice} onChange={e => setProductForm({ ...productForm, purchasePrice: e.target.value })} />
+            <Input label="Selling Price ($)" type="number" value={productForm.sellingPrice} onChange={e => setProductForm({ ...productForm, sellingPrice: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Input label="Current Stock" type="number" value={productForm.currentStock} onChange={e => setProductForm({ ...productForm, currentStock: e.target.value })} />
+            <Input label="Min Stock Alert" type="number" value={productForm.minStock} onChange={e => setProductForm({ ...productForm, minStock: e.target.value })} />
+            <Input label="Location" value={productForm.location} onChange={e => setProductForm({ ...productForm, location: e.target.value })} />
+          </div>
+          <Input label="Description" value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Ingredients" value={productForm.ingredients} onChange={e => setProductForm({ ...productForm, ingredients: e.target.value })} />
+            <Input label="Nutrition Facts" value={productForm.nutritionFacts} onChange={e => setProductForm({ ...productForm, nutritionFacts: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Directions" value={productForm.directions} onChange={e => setProductForm({ ...productForm, directions: e.target.value })} />
+            <Input label="Warnings" value={productForm.warnings} onChange={e => setProductForm({ ...productForm, warnings: e.target.value })} />
+          </div>
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-900">
+            <Button variant="outline" size="sm" onClick={() => { setIsEditingProduct(false); setEditingProduct(null); }} className="text-xs">Cancel</Button>
+            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="text-xs px-4!">Save Changes</Button>
           </div>
         </form>
       </Dialog>

@@ -16,6 +16,10 @@ export interface GymProduct {
   expiryDate?: string;
   status: 'active' | 'archived';
   description: string;
+  ingredients?: string;
+  nutritionFacts?: string;
+  directions?: string;
+  warnings?: string;
 }
 
 export interface GymEquipment {
@@ -82,7 +86,7 @@ const detailedProducts: GymProduct[] = [
     name: 'Gym Branded Shaker Bottle',
     sku: 'SHK-BLK-700',
     category: 'merchandise',
-    brand: 'Provolution Gear',
+    brand: 'The Gym Fitness Club Gear',
     supplierName: 'Siam Merchandise Partners',
     purchasePrice: 4,
     sellingPrice: 12,
@@ -118,7 +122,7 @@ const detailedProducts: GymProduct[] = [
 
 function generateProducts(): GymProduct[] {
   const list = [...detailedProducts];
-  const brands = ['Optimum Nutrition', 'Muscletech', 'Provolution Brand', 'Vitals', 'MyProtein'];
+  const brands = ['Optimum Nutrition', 'Muscletech', 'The Gym Fitness Club Brand', 'Vitals', 'MyProtein'];
   const suppliers = ['NutriFit Wholesale Ltd', 'Siam Merchandise Partners', 'Apex Sports Supply'];
   const categories: ('supplements' | 'merchandise' | 'cafe' | 'locker_room')[] = ['supplements', 'merchandise', 'cafe', 'locker_room'];
 

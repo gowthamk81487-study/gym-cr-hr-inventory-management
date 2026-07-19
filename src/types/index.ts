@@ -40,6 +40,8 @@ export interface Client {
   renewalDate: string;
   notes?: string;
   tags?: string[];
+  prCompletedDate?: string;
+  ptPackage?: string;
 }
 
 export interface Coach {

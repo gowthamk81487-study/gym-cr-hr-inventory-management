@@ -55,12 +55,12 @@ export default function ContactPage() {
         <div className="space-y-6">
           <Card className="border-slate-900 bg-slate-900/10">
             <CardContent className="space-y-4">
-              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Provolution Headquarters</h4>
+              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">The Gym Fitness Club Headquarters</h4>
               
               <div className="space-y-3.5 text-xs text-slate-400 font-medium">
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4.5 w-4.5 text-blue-500 shrink-0 mt-0.5" />
-                  <span>100 Provolution Blvd, Suite 400, San Francisco, CA 94107</span>
+                  <span>100 The Gym Fitness Club Blvd, Suite 400, San Francisco, CA 94107</span>
                 </div>
                 
                 <div className="flex items-center gap-3">
@@ -70,7 +70,7 @@ export default function ContactPage() {
                 
                 <div className="flex items-center gap-3">
                   <Mail className="h-4.5 w-4.5 text-blue-500 shrink-0" />
-                  <span>support@provolution.com</span>
+                  <span>support@thegymfitnesshub.in</span>
                 </div>
               </div>
             </CardContent>
@@ -117,9 +117,9 @@ export default function ContactPage() {
               <Select
                 label="Target Branch"
                 options={[
-                  { value: 'downtown', label: 'Provolution Downtown Club' },
-                  { value: 'heights', label: 'Provolution Heights Club' },
-                  { value: 'marina', label: 'Provolution Marina Club' }
+                  { value: 'downtown', label: 'The Gym Fitness Club Downtown Club' },
+                  { value: 'heights', label: 'The Gym Fitness Club Heights Club' },
+                  { value: 'marina', label: 'The Gym Fitness Club Marina Club' }
                 ]}
                 value={formData.branch}
                 onChange={(e) => setFormData({ ...formData, branch: e.target.value })}

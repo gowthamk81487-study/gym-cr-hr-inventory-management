@@ -1,5 +1,5 @@
 /**
- * Reusable utility functions for Provolution Gym Portal
+ * Reusable utility functions for The Gym Fitness Club Portal
  */
 
 // Custom lightweight cn (classnames) utility

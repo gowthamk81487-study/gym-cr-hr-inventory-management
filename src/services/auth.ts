@@ -1,6 +1,6 @@
 /**
  * Authentication Service
- * Provolution Club CRM & HR System
+ * The Gym Fitness Club CRM & HR System
  */
 
 import { db, UserRecord } from './db';

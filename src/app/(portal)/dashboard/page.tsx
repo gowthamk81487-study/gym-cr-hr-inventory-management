@@ -219,7 +219,7 @@ export default function DashboardPage() {
         name: inventoryForm.name,
         sku: `SKU-${Date.now().toString().slice(-6)}`,
         category: inventoryForm.category as any,
-        brand: 'Provolution',
+        brand: 'The Gym Fitness Club',
         supplierName: 'NutriFit Wholesale Ltd',
         purchasePrice: parseFloat(inventoryForm.price) * 0.6,
         sellingPrice: parseFloat(inventoryForm.price),
@@ -572,7 +572,7 @@ export default function DashboardPage() {
   return (
     <PageLayout
       title="Executive Overview"
-      description="Provolution Club real-time analytics and management operations."
+      description="The Gym Fitness Club real-time analytics and management operations."
     >
       <div className="space-y-8 py-2">
         {/* Quick Actions Control Banner */}
@@ -580,7 +580,7 @@ export default function DashboardPage() {
           <div className="space-y-1">
             <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Quick Operator Controls</h4>
             <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-              Provolution Technologies Stage 4 Active
+              The Gym Fitness Club Stage 4 Active
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

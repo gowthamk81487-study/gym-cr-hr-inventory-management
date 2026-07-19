@@ -111,18 +111,6 @@ export default function ReportsPage() {
           <InventoryChart title="Supplements & Asset Values" />
         </div>
 
-        {/* AI Insight Box */}
-        <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex gap-3 items-start">
-            <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Predictive Revenue Analysis</h4>
-              <p className="text-[11px] text-slate-400 leading-relaxed font-semibold mt-1">
-                Gemini Analytics predicts a <strong className="text-emerald-400">+12% increase</strong> in monthly subscriptions due to summer enrollment trends.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     </PageLayout>
   );

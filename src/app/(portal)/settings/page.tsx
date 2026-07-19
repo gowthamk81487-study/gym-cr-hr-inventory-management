@@ -157,7 +157,7 @@ export default function SettingsPage() {
               <CardContent className="space-y-4 text-xs font-semibold">
                 <div className="flex justify-between items-center bg-slate-950/60 p-3 rounded-lg border border-slate-900">
                   <div>
-                    <h5 className="font-bold text-slate-300">Provolution Downtown Club</h5>
+                    <h5 className="font-bold text-slate-300">The Gym Fitness Club Downtown Club</h5>
                     <p className="text-[10px] text-slate-500 mt-0.5">Primary HQ • Olympic cages</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -173,7 +173,7 @@ export default function SettingsPage() {
 
                 <div className="flex justify-between items-center bg-slate-950/60 p-3 rounded-lg border border-slate-900">
                   <div>
-                    <h5 className="font-bold text-slate-300">Provolution Heights Club</h5>
+                    <h5 className="font-bold text-slate-300">The Gym Fitness Club Heights Club</h5>
                     <p className="text-[10px] text-slate-500 mt-0.5">Cardio suites & wellness zone</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -189,7 +189,7 @@ export default function SettingsPage() {
 
                 <div className="flex justify-between items-center bg-slate-950/60 p-3 rounded-lg border border-slate-900">
                   <div>
-                    <h5 className="font-bold text-slate-300">Provolution Marina Club</h5>
+                    <h5 className="font-bold text-slate-300">The Gym Fitness Club Marina Club</h5>
                     <p className="text-[10px] text-slate-500 mt-0.5">Cryotherapy & recovery suite</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer select-none">

@@ -29,7 +29,7 @@ export default function HomePage() {
         
         <Container className="relative z-10 text-center space-y-6 max-w-4xl">
           <span className="text-[10px] sm:text-xs font-bold text-blue-400 uppercase tracking-widest px-3 py-1 bg-blue-500/5 border border-blue-500/10 rounded-full">
-            Provolution Technologies Presents
+            The Gym Fitness Club Presents
           </span>
           <h1 className="text-4xl sm:text-6xl font-black text-slate-100 tracking-tight leading-none">
             Gym HR, Membership & <br className="hidden sm:inline" />

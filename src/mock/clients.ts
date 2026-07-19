@@ -5,7 +5,7 @@ export const mockCoaches: Coach[] = [
   {
     id: 'coach-1',
     name: 'Marcus Sterling',
-    email: 'marcus@provolution.com',
+    email: 'marcus@thegymfitnesshub.in',
     phone: '+1 (555) 019-1111',
     specialization: 'Barbell Strength & Powerlifting',
     role: 'head_coach',
@@ -19,7 +19,7 @@ export const mockCoaches: Coach[] = [
   {
     id: 'coach-2',
     name: 'Elena Rostova',
-    email: 'elena@provolution.com',
+    email: 'elena@thegymfitnesshub.in',
     phone: '+1 (555) 019-2222',
     specialization: 'HIIT & Cardiorespiratory Endurance',
     role: 'personal_trainer',
@@ -33,7 +33,7 @@ export const mockCoaches: Coach[] = [
   {
     id: 'coach-3',
     name: 'Damien Vance',
-    email: 'damien@provolution.com',
+    email: 'damien@thegymfitnesshub.in',
     phone: '+1 (555) 019-3333',
     specialization: 'Body Recomposition & Nutrition',
     role: 'nutritionist',
@@ -66,7 +66,7 @@ export const mockCoaches: Coach[] = [
   ].map(c => ({
     id: c.id,
     name: c.name,
-    email: `${c.id}@provolution.com`,
+    email: `${c.id}@thegymfitnesshub.in`,
     phone: '+1 (555) 019-9999',
     specialization: c.spec,
     role: 'personal_trainer' as const,

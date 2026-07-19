@@ -1,5 +1,5 @@
 /**
- * Provolution Technologies - Gym HR & Membership System
+ * The Gym Fitness Club - Gym HR & Membership System
  * Future API Integration Bridge (Placeholder & Typed Schema Contracts)
  * 
  * In production, the service methods in `src/services/` will be re-routed 
@@ -57,7 +57,7 @@ export const API_ENDPOINTS = {
 
 // Generic Axios / Fetch Wrapper (Future Implementation Draft)
 export class FutureApiClient {
-  private static baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.gymhr.provolution.com';
+  private static baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.gymhr.thegymfitnesshub.in';
 
   private static async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {

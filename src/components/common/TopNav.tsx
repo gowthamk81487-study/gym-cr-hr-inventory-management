@@ -221,7 +221,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onMenuToggle }) => {
             {getBreadcrumb()}
           </h2>
           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider hidden sm:block">
-            Provolution Gym Hub
+            The Gym Fitness Club Hub
           </p>
         </div>
       </div>

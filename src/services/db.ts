@@ -1,6 +1,6 @@
 /**
  * Centralized Mock Database Layer
- * Provolution Club CRM & HR System
+ * The Gym Fitness Club CRM & HR System
  * Manages state in localStorage for real-time persistence across route changes
  */
 
@@ -97,79 +97,118 @@ export const initDB = () => {
     setLS('gym_users', initialUsers);
   }
 
-  // Initialize Clients
+  // Initialize Clients (Empty initially)
   if (!localStorage.getItem('gym_clients')) {
-    setLS('gym_clients', mockClients);
+    setLS('gym_clients', []);
   }
 
-  // Initialize Coaches
+  // Initialize Coaches (Marcus Sterling as coach-1)
   if (!localStorage.getItem('gym_coaches')) {
-    setLS('gym_coaches', mockCoaches);
+    const initialCoaches = [
+      {
+        id: 'coach-1',
+        name: 'Marcus Sterling',
+        email: 'coach1001@thegymfitnesshub.in',
+        phone: '+1 (555) 019-1111',
+        specialization: 'Barbell Strength & CrossFit',
+        role: 'personal_trainer',
+        status: 'active',
+        hireDate: '2026-01-10',
+        activeClientsCount: 0,
+        bio: 'Former competitive powerlifter with 12+ years coaching. Expert in barbell compound lift adjustments.',
+        experienceYears: 12,
+        profilePic: 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?auto=format&fit=crop&q=80&w=150&h=150'
+      }
+    ];
+    setLS('gym_coaches', initialCoaches);
   }
 
-  // Initialize Memberships
+  // Initialize Memberships (Seed PR Week Starter and clean standard tiers)
   if (!localStorage.getItem('gym_memberships')) {
-    setLS('gym_memberships', mockMemberships);
+    const initialMemberships = [
+      {
+        id: 'pr-starter',
+        name: 'PR Week Starter Program',
+        type: 'monthly',
+        price: 99,
+        durationMonths: 1,
+        benefits: ['Mobility Assessment', 'CrossFit Basics', 'Weight Training Basics', 'Final Assessment'],
+        status: 'active',
+        billingPeriod: 'monthly',
+        features: ['Mobility Assessment', 'CrossFit Basics', 'Weight Training Basics', 'Final Assessment']
+      },
+      {
+        id: 'basic-monthly',
+        name: 'Basic Monthly Access',
+        type: 'monthly',
+        price: 49,
+        durationMonths: 1,
+        benefits: ['General Floor Gym Access', 'Cardio Deck Usage'],
+        status: 'active',
+        billingPeriod: 'monthly',
+        features: ['General Floor Gym Access', 'Cardio Deck Usage']
+      },
+      {
+        id: 'elite-quarterly',
+        name: 'Elite Quarterly Access',
+        type: 'monthly',
+        price: 129,
+        durationMonths: 3,
+        benefits: ['Full Gym Access', 'All Yoga/HIIT Group Classes'],
+        status: 'active',
+        billingPeriod: 'monthly',
+        features: ['Full Gym Access', 'All Yoga/HIIT Group Classes']
+      }
+    ];
+    setLS('gym_memberships', initialMemberships);
   }
 
-  // Initialize Products
+  // Initialize Products (Empty list to fill via Inventory admin panel)
   if (!localStorage.getItem('gym_products')) {
-    setLS('gym_products', mockProducts);
+    setLS('gym_products', []);
   }
 
   // Initialize Equipment
   if (!localStorage.getItem('gym_equipment')) {
-    setLS('gym_equipment', mockEquipment);
+    setLS('gym_equipment', []);
   }
 
   // Initialize Suppliers
   if (!localStorage.getItem('gym_suppliers')) {
-    setLS('gym_suppliers', mockSuppliers);
+    setLS('gym_suppliers', []);
   }
 
   // Initialize POs
   if (!localStorage.getItem('gym_pos')) {
-    setLS('gym_pos', mockPurchaseOrders);
+    setLS('gym_pos', []);
   }
 
   // Initialize Workouts
   if (!localStorage.getItem('gym_workouts')) {
-    setLS('gym_workouts', mockAssignedWorkouts);
+    setLS('gym_workouts', []);
   }
 
   // Initialize Diets
   if (!localStorage.getItem('gym_diets')) {
-    setLS('gym_diets', mockAssignedDiets);
+    setLS('gym_diets', []);
   }
 
   // Initialize Templates
   if (!localStorage.getItem('gym_workout_templates')) {
-    setLS('gym_workout_templates', mockWorkoutTemplates);
+    setLS('gym_workout_templates', []);
   }
   if (!localStorage.getItem('gym_diet_templates')) {
-    setLS('gym_diet_templates', mockDietTemplates);
+    setLS('gym_diet_templates', []);
   }
 
   // Initialize Attendance
   if (!localStorage.getItem('gym_attendance')) {
-    setLS('gym_attendance', mockAttendanceLogs);
+    setLS('gym_attendance', []);
   }
 
   // Initialize Enquiries
   if (!localStorage.getItem('gym_enquiries')) {
-    const initialEnquiries: EnquiryRecord[] = [
-      {
-        id: 'ENQ-001',
-        name: 'Gowtham Raj',
-        email: 'gowtham14072006@thegymfitnesshub.in',
-        phone: '+91 9876543210',
-        branch: 'downtown',
-        message: 'Looking to enroll in the 7 Day PR Starter Program CrossFit schedule.',
-        status: 'new',
-        createdDate: '2026-07-18'
-      }
-    ];
-    setLS('gym_enquiries', initialEnquiries);
+    setLS('gym_enquiries', []);
   }
 
   // Initialize Orders
@@ -177,17 +216,17 @@ export const initDB = () => {
     setLS('gym_orders', []);
   }
 
-  // Initialize Staff
+  // Initialize Staff (Manager Alex Pierce, Receptionist Danny)
   if (!localStorage.getItem('gym_staff')) {
     const initialStaff: Staff[] = [
       {
         id: 'STF-001',
-        name: 'Alexander Pierce',
+        name: 'Alex Pierce',
         email: 'manager@thegymfitnesshub.in',
         phone: '+1 (555) 019-8801',
         role: 'manager',
         status: 'active',
-        hireDate: '2023-01-15',
+        hireDate: '2026-01-15',
         salary: 4500
       },
       {
@@ -197,18 +236,8 @@ export const initDB = () => {
         phone: '+1 (555) 019-8802',
         role: 'receptionist',
         status: 'active',
-        hireDate: '2024-05-10',
+        hireDate: '2026-05-10',
         salary: 2200
-      },
-      {
-        id: 'STF-003',
-        name: 'Clara Oswald',
-        email: 'clara@thegymfitnesshub.in',
-        role: 'admin',
-        phone: '+1 (555) 019-8803',
-        status: 'active',
-        hireDate: '2023-08-20',
-        salary: 3500
       }
     ];
     setLS('gym_staff', initialStaff);
@@ -221,27 +250,7 @@ export const initDB = () => {
 
   // Initialize Notifications
   if (!localStorage.getItem('gym_notifications')) {
-    const initialNotifications: NotificationRecord[] = [
-      {
-        id: 'NOT-1',
-        title: 'New enquiry received',
-        message: 'Gowtham Raj submitted an enquiry regarding PR Starter Program.',
-        type: 'info',
-        read: false,
-        date: new Date().toISOString(),
-        targetRole: 'super_admin'
-      },
-      {
-        id: 'NOT-2',
-        title: 'Low inventory alert',
-        message: 'Whey Protein Hydrolyzed stock is below minimum threshold limit.',
-        type: 'warning',
-        read: false,
-        date: new Date().toISOString(),
-        targetRole: 'manager'
-      }
-    ];
-    setLS('gym_notifications', initialNotifications);
+    setLS('gym_notifications', []);
   }
 };
 

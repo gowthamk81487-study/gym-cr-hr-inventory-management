@@ -297,26 +297,6 @@ export default function DietsPage() {
               <StatCard title="Average Protein" value={`${dashboardStats.avgProtein}g`} icon={Layers} change="Daily protein target" />
             </div>
 
-            {/* AI Recommendations stubs banner */}
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex gap-3 items-start">
-                <Sparkles className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Gemini Meal Recommendations Engine</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed font-semibold mt-1">
-                    AI maps client allergies (e.g. Peanuts, Dairy) to suggest alternative recipes in the Meal Library automatically.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => showToast('Smart recommendations optimized.', 'info')}
-                className="text-[10px] py-1 border-slate-800 text-blue-400 hover:text-blue-300 font-bold shrink-0 cursor-pointer"
-              >
-                Sync Meal Engine
-              </Button>
-            </div>
           </div>
         )}
 
